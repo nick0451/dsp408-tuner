@@ -40,7 +40,7 @@ from .qa import (
     require_signal_response,
     rms_dbfs,
 )
-from .result import Coupling, Measurement, Provenance
+from .result import Coupling, Measurement, PassSpread, Provenance
 from .sweep import Sweep, log_sweep
 from .timing import TimingReference
 
@@ -372,15 +372,46 @@ def _combine_passes(stack: list[np.ndarray]) -> np.ndarray:
     if len(stack) == 1:
         return stack[0]
 
-    length = stack[0].size
-    reference = stack[0]
-    aligned = [reference] + [_shift(p, -_lag_samples(p, reference)) for p in stack[1:]]
-
-    n = next_fast_len(length)
-    spectra = np.array([rfft(p, n) for p in aligned])
+    spectra, length, n = _aligned_spectra(stack)
     magnitude = np.median(np.abs(spectra), axis=0)
     phase = np.angle(spectra.sum(axis=0))
     return irfft(magnitude * np.exp(1j * phase), n)[:length]
+
+
+def _aligned_spectra(stack: list[np.ndarray]) -> tuple[np.ndarray, int, int]:
+    """Align passes to each other and transform them. Shared, not duplicated.
+
+    Both the combiner and the spread need exactly this, and computing the
+    alignment twice would risk the two disagreeing about which passes were
+    compared -- which would make the spread a description of a combination
+    that never happened.
+    """
+    length = stack[0].size
+    reference = stack[0]
+    aligned = [reference] + [_shift(p, -_lag_samples(p, reference)) for p in stack[1:]]
+    n = next_fast_len(length)
+    return np.array([rfft(p, n) for p in aligned]), length, n
+
+
+def _pass_spread(stack: list[np.ndarray], sample_rate_hz: int) -> PassSpread | None:
+    """Per-bin disagreement between repeats. None when there is only one.
+
+    Peak-to-peak rather than a standard deviation, for the same reason the
+    session repeatability floor uses a spread: at three repeats the spread is
+    the honest bound on how far one measurement might be off, and a deviation
+    from three samples is a statistic pretending to be one.
+    """
+    if len(stack) < 2:
+        return None
+    spectra, _length, n = _aligned_spectra(stack)
+    magnitudes = np.abs(spectra)
+    high = 20.0 * np.log10(np.max(magnitudes, axis=0) + 1e-30)
+    low = 20.0 * np.log10(np.min(magnitudes, axis=0) + 1e-30)
+    return PassSpread(
+        freqs_hz=rfftfreq(n, 1.0 / sample_rate_hz),
+        spread_db=high - low,
+        n_passes=len(stack),
+    )
 
 
 def _single_pass(
@@ -510,7 +541,9 @@ def capture_sweep(
 
     results: dict[int, Measurement] = {}
     for channel in config.input_channels:
-        impulse = _combine_passes([aligned[channel] for aligned, _ in passes])
+        stack = [aligned[channel] for aligned, _ in passes]
+        impulse = _combine_passes(stack)
+        spread = _pass_spread(stack, config.sample_rate_hz)
         results[channel] = Measurement(
             impulse=np.ascontiguousarray(impulse),
             provenance=provenance,
@@ -518,6 +551,7 @@ def capture_sweep(
             timing=(
                 TimingReference.LOOPBACK if has_reference else TimingReference.NONE
             ),
+            repeat_spread=spread,
             notes=notes,
         )
     return results

@@ -43,6 +43,21 @@ _DEFAULT_LIMIT = ChannelLimit()
 #: with stimulus level in a way that mimics compression exactly.
 DEFAULT_MIN_TONE_HEADROOM_DB = 40.0
 
+#: The same idea against an **absolute** floor, and unlike the figure above
+#: this one is derived rather than chosen. An uncorrelated floor ``x`` dB
+#: below a tone inflates that tone's measured level by ``10*log10(1 + 10**
+#: (-x/10))``:
+#:
+#:     6 dB -> 0.97 dB      16 dB -> 0.108 dB
+#:    12 dB -> 0.27 dB      20 dB -> 0.043 dB
+#:
+#: At 20 dB the floor moves the measurement by 0.04 dB, which is far inside
+#: any tolerance this check would be run with (1.0 dB by default) and inside
+#: the rig's own repeatability. Reusing the relative figure of 40 dB here
+#: would be four times stricter than the arithmetic asks for, and it showed:
+#: it excluded every tone in a room quiet enough to measure in.
+DEFAULT_MIN_TONE_MARGIN_DB = 20.0
+
 #: Fewer usable tones than this and the check cannot conclude anything. Two is
 #: the minimum that can disagree; one can only fail to contradict linearity.
 MIN_USABLE_TONES = 2
@@ -89,9 +104,60 @@ class LinearityResult:
 
         Judged relative to the loudest tone, because absolute level depends on
         channel gain and interface gain, neither of which this check knows.
+
+        .. warning::
+           **Relative means common-mode noise slips through.** This finds a
+           tone that is quiet *compared to its neighbours*, which is exactly
+           the stopband case it was built for. Room ambient is not like that:
+           it lifts every test frequency at once, so no tone is an outlier,
+           nothing is excluded, and every tone then shows the same
+           noise-inflated gain at low level -- which the spread test reads as
+           compression on a chain that is perfectly linear.
+
+           Pass a measured idle floor to :meth:`usable_against` instead. It
+           is the same test with an absolute reference, and the reference now
+           exists: ``_verify_quiet`` captures the floor through the identical
+           path before every sweep.
         """
         loudest = self.gain_db.max()
         return self.gain_db.max(axis=1) > loudest - min_headroom_db
+
+    def captured_dbfs(self) -> np.ndarray:
+        """Absolute level each tone arrived at, per (frequency, level)."""
+        return self.gain_db + np.asarray(self.levels_dbfs, dtype=np.float64)
+
+    def usable_against(
+        self,
+        idle: IdleNoiseResult,
+        min_margin_db: float = DEFAULT_MIN_TONE_MARGIN_DB,
+    ) -> np.ndarray:
+        """Mask of tones that cleared the **measured** floor at their own
+        frequency, at every level tested.
+
+        Judged at every level rather than the loudest, because the lowest is
+        where noise bites and it is the lowest that bends the gain curve. A
+        tone that is clean at -6 dBFS and buried at -40 contributes exactly
+        the false compression this is meant to exclude.
+
+        The direction of the error is worth keeping in mind, because it is not
+        symmetric:
+
+        * Noise inflates the apparent gain at low level. So does a compressor.
+          They **add**, and the result is a false alarm -- annoying, safe.
+        * A gate attenuates at low level. Noise and a gate therefore **cancel**,
+          and enough ambient makes a gating chain read as linear. That is a
+          missed detection of something ``NonLinearPath`` explicitly exists to
+          catch, and it is why this check is worth making absolute rather than
+          simply loosening the tolerance.
+
+        The margin asked for is **not** the relative test's 40 dB. That
+        figure is a coarse "is this tone in the mud compared to its siblings"
+        outlier test. This one has an answer: see
+        ``DEFAULT_MIN_TONE_MARGIN_DB``.
+        """
+        floor = idle.level_at(np.asarray(self.freqs_hz, dtype=np.float64))
+        margin = self.captured_dbfs() - floor[:, None]
+        return margin.min(axis=1) > min_margin_db
 
     def spread_db_of(self, mask: np.ndarray) -> float:
         rows = self.gain_db[mask]
@@ -192,6 +258,7 @@ def require_linear_path(
     result: LinearityResult,
     tolerance_db: float = DEFAULT_TOLERANCE_DB,
     min_usable_tones: int = MIN_USABLE_TONES,
+    idle: IdleNoiseResult | None = None,
 ) -> None:
     """Raise unless gain is measurably level-independent.
 
@@ -208,21 +275,37 @@ def require_linear_path(
     passband is invisible to a stopband tone at any SNR. Excluding them is
     therefore not a sensitivity tweak, it is the difference between measuring
     the path and measuring its noise.
+
+    **Pass ``idle`` for acoustic work.** Without it the exclusion is relative
+    to the loudest tone, which finds one tone in the noise and cannot find
+    all of them -- and room ambient lifts every test frequency at once. With
+    it, each tone is judged against the floor measured at its own frequency
+    through the same path, which is the case a relative test structurally
+    cannot see. See :meth:`LinearityResult.usable_against`.
     """
-    mask = result.usable()
+    mask = result.usable_against(idle) if idle is not None else result.usable()
+    reference = "the measured noise floor" if idle is not None else "the loudest tone"
     usable = int(mask.sum())
     if usable < min_usable_tones:
         raise IndeterminateLinearity(
             f"only {usable} of {len(result.freqs_hz)} test tones carried "
-            f"signal; {min_usable_tones} are needed before level-independence "
-            f"means anything. This is the expected result of probing a "
-            f"crossover-filtered channel with full-range tones -- re-run with "
-            f"frequencies inside this channel's passband.\n\n"
+            f"signal above {reference}; {min_usable_tones} are needed before "
+            f"level-independence means anything. Probing a crossover-filtered "
+            f"channel with full-range tones does this -- re-run with "
+            f"frequencies inside this channel's passband. So does measuring "
+            f"acoustically at too low a level, where the answer is to raise "
+            f"the stimulus or quiet the room, not to lower the bar.\n\n"
             f"{result.report()}"
         )
-    if result.spread_db > tolerance_db:
+    # `spread_db_of(mask)`, never the `spread_db` property. That property
+    # recomputes its own mask from `usable()`, so judging with it would
+    # silently ignore whichever tones were just excluded -- which is invisible
+    # while the two masks agree and wrong the moment they do not. Supplying an
+    # `idle` floor is exactly when they stop agreeing.
+    spread = result.spread_db_of(mask)
+    if spread > tolerance_db:
         raise NonLinearPath(
-            f"gain varies by {result.spread_db:.1f} dB across input level "
+            f"gain varies by {spread:.1f} dB across input level "
             f"(tolerance {tolerance_db:.1f} dB). Something in the chain is "
             f"gating, compressing or limiting; frequency-response "
             f"measurements through it are not trustworthy.\n\n"
@@ -258,10 +341,49 @@ class IdleNoiseResult:
     sample_rate_hz: int
     #: (low_hz, high_hz) -> level in dBFS, for locating the source.
     bands_dbfs: dict[tuple[float, float], float]
+    #: Per-bin amplitude spectrum in dBFS, and the frequencies it sits on.
+    #: Retained so a caller can ask what the floor is doing at one frequency
+    #: rather than in one of three wide buckets -- which is what the
+    #: linearity check needs, and what a band level cannot give it.
+    spectrum_dbfs: np.ndarray | None = None
+    spectrum_freqs_hz: np.ndarray | None = None
 
     def snr_db(self, level_dbfs: float) -> float:
-        """Headroom between a stimulus at ``level_dbfs`` and this floor."""
+        """Headroom between a stimulus at ``level_dbfs`` and this floor.
+
+        .. warning::
+           ``level_dbfs`` is what was **transmitted**, not what arrived. Down
+           a cable those are within a few decibels and this reads as a real
+           signal-to-noise ratio. Acoustically it is not one: the received
+           level is tens of decibels lower and frequency-dependent, so this
+           becomes a statement about the input path being quiet rather than
+           about the measurement having margin. Both are worth knowing; only
+           the first is what this returns.
+        """
         return level_dbfs - self.rms_dbfs
+
+    def level_at(self, freqs_hz: np.ndarray) -> np.ndarray:
+        """Noise floor in dBFS at given frequencies, per analysis bin.
+
+        Interpolated in the **power** domain, because averaging decibels
+        averages logarithms and understates a floor with any structure in it.
+
+        The bin width here is set by this capture's own length, which is not
+        exactly the window a tone measurement uses. The mismatch is a fraction
+        of a decibel of noise bandwidth and is not corrected for -- the check
+        that consumes this asks for tens of decibels of margin, so quibbling
+        at a fraction of one would be false precision.
+        """
+        if self.spectrum_dbfs is None or self.spectrum_freqs_hz is None:
+            raise ValueError(
+                "this idle result carries no spectrum, so the floor at a "
+                "particular frequency is unknown. It was built by an older "
+                "call site or reconstructed from a report."
+            )
+        wanted = np.asarray(freqs_hz, dtype=np.float64)
+        power = 10.0 ** (np.asarray(self.spectrum_dbfs, dtype=np.float64) / 10.0)
+        interpolated = np.interp(wanted, self.spectrum_freqs_hz, power)
+        return 10.0 * np.log10(interpolated + 1e-30)
 
     def report(self) -> str:
         lines = [
@@ -308,6 +430,8 @@ def analyze_idle_noise(
         peak_dbfs=to_db(float(np.max(np.abs(y)))),
         sample_rate_hz=sample_rate_hz,
         bands_dbfs=bands,
+        spectrum_dbfs=20.0 * np.log10(spectrum + 1e-30),
+        spectrum_freqs_hz=bins,
     )
 
 

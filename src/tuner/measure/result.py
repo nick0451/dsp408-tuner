@@ -237,6 +237,66 @@ class Provenance:
 
 
 @dataclass(frozen=True)
+class PassSpread:
+    """How much the repeats of one measurement disagreed, per frequency.
+
+    **The only instrument here that sees noise during the sweep.** The idle
+    check samples the floor beforehand and is blind to anything that happens
+    afterwards -- a truck going past, a compressor cycling, a door. Electrical
+    noise is stationary so a snapshot was a fair sample of the whole capture;
+    ambient noise is bursty and it is not.
+
+    It costs nothing: ``capture_sweep`` already takes repeats and medians them,
+    and this is the disagreement it was already computing and discarding.
+
+    Two limits worth stating rather than discovering:
+
+    * With three passes, **two contaminated ones beat the median**. The spread
+      still reports the disagreement, so the failure becomes visible rather
+      than silent -- but visible is not corrected.
+    * A *sustained* change contaminates every pass equally and produces no
+      spread at all. HVAC that switches on before the first repeat and stays
+      on is invisible here and belongs to the idle check.
+
+    Magnitudes only. A residual alignment error is a phase ramp, and including
+    phase would report it as noise -- which it is not, and which grows with
+    frequency in a way that would make every measurement look worst exactly
+    where this rig is already least validated.
+    """
+
+    freqs_hz: np.ndarray
+    #: Peak-to-peak magnitude disagreement across passes, in dB, per bin.
+    spread_db: np.ndarray
+    n_passes: int
+
+    def at(self, freqs_hz: np.ndarray) -> np.ndarray:
+        """Spread at arbitrary frequencies. Linear in dB -- it is a difference,
+        not a level, so there is nothing to average in the power domain."""
+        return np.interp(
+            np.asarray(freqs_hz, dtype=np.float64), self.freqs_hz, self.spread_db
+        )
+
+    def worst_db(self, lo_hz: float, hi_hz: float) -> float:
+        """Largest disagreement inside a band. Largest, not mean, because one
+        contaminated bin is a contaminated measurement."""
+        inside = (self.freqs_hz >= lo_hz) & (self.freqs_hz <= hi_hz)
+        if not np.any(inside):
+            return 0.0
+        return float(np.max(self.spread_db[inside]))
+
+    def summary(self, lo_hz: float = 20.0, hi_hz: float = 20_000.0) -> str:
+        band = (self.freqs_hz >= lo_hz) & (self.freqs_hz <= hi_hz)
+        if not np.any(band):
+            return "no bins in band"
+        values = self.spread_db[band]
+        return (
+            f"{self.n_passes} passes disagree by {np.median(values):.3f} dB "
+            f"median, {np.max(values):.3f} dB worst, over "
+            f"{lo_hz:.0f}-{hi_hz:.0f} Hz"
+        )
+
+
+@dataclass(frozen=True)
 class Measurement:
     """One impulse response and everything needed to interpret it.
 
@@ -269,6 +329,9 @@ class Measurement:
     provenance: Provenance
     arrival_samples: int | None = None
     timing: TimingReference = TimingReference.NONE
+    #: Disagreement between the repeats this was combined from, if there was
+    #: more than one. The measurement's own account of how noisy it was.
+    repeat_spread: PassSpread | None = None
     notes: dict[str, str] = field(default_factory=dict)
 
     @property
