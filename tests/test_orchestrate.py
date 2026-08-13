@@ -819,6 +819,7 @@ class TestAcousticMeasurer:
 
         monkeypatch.setattr(rig_module, "capture_sweep", fake_capture_sweep)
         kwargs.setdefault("linearity", _linear_result())
+        kwargs.setdefault("idle", _idle_result())
         measurer = rig_module.AcousticMeasurer(
             config=CaptureConfig(sample_rate_hz=SAMPLE_RATE_HZ, input_channels=(1,)),
             session=SessionInfo(
@@ -855,7 +856,7 @@ class TestAcousticMeasurer:
 
         calls = []
         monkeypatch.setattr(
-            rig_module, "require_linear_path", lambda r: calls.append(r)
+            rig_module, "require_linear_path", lambda r, idle=None: calls.append(r)
         )
         measurer, _ = self._rig(monkeypatch)
         for _ in range(3):
@@ -887,6 +888,7 @@ class TestAcousticMeasurer:
             ),
             positions=("driver",),
             linearity=_linear_result(),
+            idle=_idle_result(),
         )
         with pytest.raises(rig_module.RigError, match="would be a guess"):
             measurer.measure(0, ChannelLimit(), "baseline")
@@ -916,6 +918,16 @@ def _linear_result():
         levels_dbfs=(-30.0, -24.0, -18.0),
         gain_db=np.zeros((3, 3)),
     )
+
+
+def _idle_result(rms_dbfs: float = -95.0):
+    """A quiet measured floor. Acoustic rigs require one."""
+    from tuner.measure.qa import analyze_idle_noise
+
+    rng = np.random.default_rng(0)
+    noise = rng.normal(0.0, 1.0, 48_000)
+    noise = noise / float(np.sqrt(np.mean(noise**2))) * 10 ** (rms_dbfs / 20.0)
+    return analyze_idle_noise(noise, 48_000)
 
 
 # ---------------------------------------------------------------------------
@@ -1661,6 +1673,7 @@ class TestTheSetupToken:
             session=SessionInfo(gains_db=(30.0,), **session_kwargs),
             positions=("driver",),
             linearity=_linear_result(),
+            idle=_idle_result(),
         )
 
     def test_an_acoustic_rig_without_a_token_is_refused_at_construction(
@@ -1697,6 +1710,7 @@ class TestTheSetupToken:
             ),
             positions=("driver",),
             linearity=_linear_result(),
+            idle=_idle_result(),
         ).measure(0, ChannelLimit(), "baseline")
         assert seen[0].setup_token == "driver seat, doors shut"
 
@@ -1809,3 +1823,68 @@ class TestTheFloorBracketsTheRun:
         backend = a_backend(tmp_path)
         report = a_run(a_plan(tmp_path), backend, SyntheticRig(backend)).execute()
         assert report.stage_data(Stage.VERIFY, "warning") is None
+
+
+class TestAnAcousticRigNeedsItsNoiseFloor:
+    """The absolute linearity test, made automatic rather than remembered.
+
+    Required for acoustic and optional for electrical -- the same asymmetry as
+    the setup token, and for the same reason: what it guards against only
+    exists once there is a room.
+    """
+
+    def _make(self, monkeypatch, **kwargs):
+        from tuner.measure.capture import CaptureConfig, SessionInfo
+        from tuner.orchestrate import rig as rig_module
+
+        monkeypatch.setattr(
+            rig_module, "capture_sweep", lambda c, s, now=None: {1: _flat_measurement()}
+        )
+        session_kwargs = kwargs.pop("session_kwargs", {})
+        session_kwargs.setdefault("setup_token", "driver seat, mic at headrest")
+        return rig_module.AcousticMeasurer(
+            config=CaptureConfig(sample_rate_hz=SAMPLE_RATE_HZ, input_channels=(1,)),
+            session=SessionInfo(gains_db=(30.0,), **session_kwargs),
+            positions=("driver",),
+            linearity=_linear_result(),
+            **kwargs,
+        )
+
+    def test_an_acoustic_rig_without_a_floor_is_refused(self, monkeypatch):
+        from tuner.orchestrate.rig import RigError
+
+        with pytest.raises(RigError, match="noise floor measured"):
+            self._make(monkeypatch)
+
+    def test_the_refusal_says_why_relative_is_not_enough(self, monkeypatch):
+        # The failure it prevents is specific: a mains harmonic or blower tone
+        # on a test frequency reads as compression on a linear chain, and the
+        # relative test cannot see it because it only drops *quiet* tones.
+        from tuner.orchestrate.rig import RigError
+
+        with pytest.raises(RigError) as excinfo:
+            self._make(monkeypatch)
+        assert "mains harmonic" in str(excinfo.value)
+
+    def test_an_electrical_rig_may_omit_it(self, monkeypatch):
+        from tuner.measure.result import Coupling
+
+        assert self._make(monkeypatch, session_kwargs={"coupling": Coupling.ELECTRICAL})
+
+    def test_with_a_floor_it_builds(self, monkeypatch):
+        # Vacuity: the refusal must not fire when the floor is supplied.
+        assert self._make(monkeypatch, idle=_idle_result())
+
+    def test_the_floor_reaches_the_linearity_check(self, monkeypatch):
+        from tuner.orchestrate import rig as rig_module
+        from tuner.safety.limits import ChannelLimit
+
+        seen = {}
+        monkeypatch.setattr(
+            rig_module,
+            "require_linear_path",
+            lambda r, idle=None: seen.update(idle=idle),
+        )
+        idle = _idle_result()
+        self._make(monkeypatch, idle=idle).measure(0, ChannelLimit(), "baseline")
+        assert seen["idle"] is idle

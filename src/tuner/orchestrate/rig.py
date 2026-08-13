@@ -28,7 +28,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field, replace
 
 from ..measure.capture import CaptureConfig, SessionInfo, capture_sweep
-from ..measure.qa import LinearityResult, require_linear_path
+from ..measure.qa import IdleNoiseResult, LinearityResult, require_linear_path
 from ..measure.result import Coupling, Measurement
 from ..safety.limits import ChannelLimit
 
@@ -58,6 +58,11 @@ class AcousticMeasurer:
             with tones inside the channels' passbands. Checked once, on the
             first sweep. ``None`` means the run is **not verified**, and this
             class says so out loud rather than proceeding quietly.
+        idle: The session's measured noise floor. It turns the linearity check
+            from a relative test into an absolute one. **Required for an
+            acoustic session**, optional for an electrical one -- the same
+            asymmetry as ``setup_token``, and for the same reason: what it
+            guards against only exists once there is a room.
         headroom_db: How far below the ceiling to sweep. Zero sweeps at the
             ceiling exactly, which is permitted and leaves nothing for a
             driver that is more efficient than expected.
@@ -68,6 +73,7 @@ class AcousticMeasurer:
     positions: tuple[str, ...]
     move_microphone: Callable[[str], None] | None = None
     linearity: LinearityResult | None = None
+    idle: IdleNoiseResult | None = None
     headroom_db: float = 3.0
     _linearity_checked: bool = field(default=False, init=False)
 
@@ -86,6 +92,24 @@ class AcousticMeasurer:
                 f"measure the same seat {len(self.positions)} times and the "
                 f"objective would report a multi-seat compromise that was "
                 f"never measured"
+            )
+        if self.session.coupling is Coupling.ACOUSTIC and self.idle is None:
+            # Without a measured floor the linearity check falls back to
+            # judging each tone against its neighbours, which structurally
+            # cannot see narrowband interference sitting on a test frequency:
+            # that test only drops tones that are too *quiet*, and an
+            # interferer makes one too *loud*. In a car, mains harmonics and
+            # blower tones are exactly that, and the symptom is a perfectly
+            # linear chain reported as compressing.
+            raise RigError(
+                "an acoustic session needs its noise floor measured. Pass "
+                "AcousticMeasurer(idle=...) from "
+                "tuner.measure.qa.measure_idle_noise, taken through this same "
+                "path. Without it the linearity check is judged relative to "
+                "the loudest tone, which cannot see a mains harmonic or a "
+                "blower tone landing on a test frequency -- and that reads as "
+                "compression on a chain that is perfectly linear. Electrical "
+                "sessions may omit it."
             )
         if self.session.coupling is Coupling.ACOUSTIC and not self.session.setup_token:
             # Checked here, at construction, and not left to the verification
@@ -164,5 +188,5 @@ class AcousticMeasurer:
                 "in the chain invalidates every single-level measurement, and "
                 "the resulting curves look entirely reasonable."
             )
-        require_linear_path(self.linearity)
+        require_linear_path(self.linearity, idle=self.idle)
         self._linearity_checked = True

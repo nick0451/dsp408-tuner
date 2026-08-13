@@ -1,9 +1,15 @@
 # Project state
 
-**Updated: 2026-08-13.** The closed loop ran end to end on hardware on
-2026-08-12; the two days since fixed the fit it exposed and the provenance
-model it relied on. Read this first after a context reset. `CLAUDE.md` holds
-the rules; this holds the situation.
+**Updated: 2026-08-13, end of session.** The closed loop ran on hardware on
+2026-08-12; everything since has been preparing the acoustic path, which has
+**still never been run**. Read this first after a context reset. `CLAUDE.md`
+holds the rules; this holds the situation.
+
+**The project is now public: https://github.com/nick0451/dsp408-tuner**
+(MIT). Note for anyone resuming: the repository used to be rooted at the
+operator's *home directory* with zero commits, so a `git add -A` would have
+published credentials and personal files. That is fixed and the stray `.git`
+is gone; do not recreate one above the project.
 
 ## Where the project stands
 
@@ -11,7 +17,7 @@ the rules; this holds the situation.
 it ran on 2026-08-12: arm, isolation, floor, baseline, fit, write, verify,
 settle, accepted, device restored and verified byte-identical afterwards.
 
-    pytest 1454 passing    ruff clean
+    pytest 1508 passing    ruff clean
     dsp408_probe rehearse 29/29    tune_run rehearse 41/41
 
 **Since then, two fixes, both below.**
@@ -198,8 +204,55 @@ analog stage at all -- but a vendor app over USB-B is one of the three measured
 arbitration signatures that kills the RFCOMM link, so streaming audio in over
 USB while holding a control link may do the same. Measure before cabling.
 
+### Built 2026-08-13, none of it run against air yet
+
+The acoustic path exists end to end and has never been exercised. What is new:
+
+| | |
+|---|---|
+| `SplitDevices` | Two independent WASAPI streams at 48 kHz, interface output in **exclusive** mode. Measured: WASAPI cannot open one duplex stream across a UMIK-1 and a Scarlett at any rate; MME can, by resampling, which is worse than failing. A loopback across a split clock is **refused** |
+| `tuner.measure.timing` | The acoustic timing reference -- chirp, first-group detection, clock ratio, timebase correction. `TimingReference` is now NONE / LOOPBACK / **ACOUSTIC**, and the middle state refuses absolute delay while permitting relative |
+| `tuner.measure.fault` | Plant a known filter in the stimulus so a bench run has a right answer and can be scored against zero |
+| `PassSpread` | Per-bin disagreement between repeats -- the only instrument that sees noise *during* a sweep |
+| `usable_against` | Linearity judged against a measured floor rather than against the loudest tone. Required for acoustic sessions |
+| `inspect_capture` | Input headroom, reported before a sweep is lost to it |
+
+**Two claims were refuted by measurement in the same session**, and both are
+recorded in `CLAUDE.md` rather than quietly dropped: that low-frequency ambient
+hides in a broadband RMS gate (it does not -- RMS is dominated by the loudest
+band), and that room noise makes a linear path read as compressed (not from
+broadband ambient -- the narrowband detector rejects it by 42.5 dB). The real
+risk is *narrowband* interference on a test frequency, which the relative guard
+is blind to by construction.
+
+### The bench session that should come before the car
+
+The 2.1 on the bench is a Logitech THX system: a plate amp in the sub driving
+everything, fed line-level from the DSP. It cannot test sub alignment (the
+crossover is internal to the amp, so the DSP cannot address the sub), but it
+can test the whole acoustic loop against a **known answer**.
+
+Order matters, and steps 1-4 emit nothing that could be lost:
+
+1. `python tools/mic_check.py` -- streams open, idle floor
+2. **Level linearity** at low volume. The plate amp very likely has a limiter,
+   and `require_linear_path` exists for exactly that. Find the level where it
+   passes and operate there
+3. Repeatability floor with `--spacing-s`, so it spans a run rather than 30 s
+4. **Does the reference arrival repeat across repeats?** This is the go/no-go.
+   REW's author says the acoustic timing reference is unreliable in a car
+   because of close reflections -- and a *consistently* wrong detection is
+   survivable, since a constant cancels in relative delay, while an
+   inconsistent one poisons every delay in the session
+5. Clean sweep -> becomes the target. **Not flat, not Harman** -- the system's
+   own pre-fault response, so everything the Logitech does cancels and the
+   correct answer is exactly the inverse of the planted fault
+6. Plant the fault, run the loop, score against zero
+
 ### Next, in order of what each buys
 
+0. **Run the bench acoustic session above.** Nothing below is worth more
+   than the first real measurement through air.
 1. **The microphone, in the car.** The device path is settled and built --
    `SplitDevices`, two independent WASAPI streams at 48 kHz with the interface
    output in exclusive mode. Still to wire: the reference chirp into
@@ -572,7 +625,7 @@ app connected over USB-B the device accepts the Bluetooth RFCOMM link and then
 ignores it completely — no reply, no error, no disconnect. Detach USB before
 opening the socket.
 
-`pytest` → **1454 passing**, `ruff check .` → clean, `dsp408_probe rehearse` →
+`pytest` → **1508 passing**, `ruff check .` → clean, `dsp408_probe rehearse` →
 29/29, `tune_run rehearse` → 41/41. Everything runs with no hardware attached.
 
 ### What the bench session settled
@@ -924,7 +977,7 @@ report what that compromise cost. `budget.normalize_delays` implemented.
 photographs). All are load-bearing: several conclusions rest on them and are
 pinned by tests.
 
-**Tests: 1454.** Of these, 209 are the protocol golden frames and 18 the bulk
+**Tests: 1508.** Of these, 209 are the protocol golden frames and 18 the bulk
 record — both checked against evidence from outside this project. The rest are
 largely self-referential by necessity: **the suite runs against `sim.py`, which
 encodes our model of the device, including the knowingly-wrong single-pool
@@ -1985,7 +2038,7 @@ is **not** the HF artifact (alignment suppresses it to ~0.1–0.36 dB, an order 
 magnitude too small), and my first replacement for it measured *worse* than what
 it replaced. Both were caught by measuring rather than reasoning.
 
-Test count went 237 → 577 → 1058 → 1159 → 1241 → 1258 → 1292 → 1294 → 1297 → 1316 → 1327 → 1334 → 1347 → 1354 → 1365 → 1371 → 1388 → 1392 → 1396 → 1408 → **1454**.
+Test count went 237 → 577 → 1058 → 1159 → 1241 → 1258 → 1292 → 1294 → 1297 → 1316 → 1327 → 1334 → 1347 → 1354 → 1365 → 1371 → 1388 → 1392 → 1396 → 1408 → 1454 → **1508**.
 
 #### Standing rules for bench sessions
 

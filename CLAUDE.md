@@ -369,6 +369,161 @@ than incidental:
   narrowband, so in the time domain it is spread thinly across thousands of
   samples and is an outlier at none of them.
 
+## Ambient noise, and what it can be mistaken for
+
+Everything up to 2026-08-13 was measured down a cable, where the noise floor
+is stationary and one probe before the sweep is a fair sample of the whole
+capture. A room is neither. Two claims made here about that were **wrong**,
+and both are recorded because both were plausible and neither survived
+arithmetic.
+
+> ### ⛔ Refuted: "low-frequency ambient hides in a broadband RMS gate"
+>
+> It does not. RMS is dominated by whichever band carries the most power, so
+> LF ambient at −55 dBFS drags the broadband figure to −55 and
+> `require_quiet_path` fires anyway. **A per-band gate was designed and then
+> dropped**, because measurement showed it would add almost nothing over the
+> check already there.
+>
+> The real limitation of that gate is different and worth knowing: it compares
+> the floor against the **transmitted** stimulus level, not the received one.
+> Down a cable those are within a few decibels. Acoustically the received level
+> is tens of decibels lower and frequency-dependent, so the gate is a statement
+> that *the input path is quiet*, not that *the measurement has margin*. Both
+> are worth having; only the first is what it returns, and `snr_db` now says so.
+
+> ### ⛔ Refuted: "room noise makes a linear path read as compressed"
+>
+> Not from broadband ambient. `measure_level_linearity` reads a **single FFT
+> bin** at the tone, over a 1.1 s window — a 1.36 Hz effective noise bandwidth
+> against 24 kHz, which is **42.5 dB of rejection**. A tone captured at
+> −70 dBFS is only troubled once the room reaches about −27 dBFS *at the
+> input*, which is a fault rather than a room.
+>
+> That number had already been computed in the same conversation and was then
+> ignored while writing a test that contradicted it. **An arithmetic result
+> that is not carried into the next step is not a finding, it is a note.**
+
+> ### ✅ What is real: narrowband interference on a test frequency
+>
+> Mains harmonics (300 Hz is the fifth of 60), fan blade tones, motor whine.
+> One bin has **no rejection at all**, and an interferer that does not scale
+> with stimulus inflates a tone's level most where the tone is weakest — so
+> gain falls as level rises, which is the signature of compression.
+>
+> **`LinearityResult.usable()` structurally cannot see it.** That test drops
+> tones which are too *quiet* relative to their neighbours; an interferer makes
+> a tone too *loud*. It was built for a stopband tone through a filtered
+> channel and it is right for that; it is blind to this by construction, not by
+> tolerance.
+>
+> `usable_against(idle)` judges each tone against the floor measured at its own
+> frequency. `IdleNoiseResult` keeps its spectrum so it can answer that, and
+> `AcousticMeasurer` **requires** an idle floor for an acoustic session and
+> permits its absence for an electrical one — the same asymmetry as
+> `setup_token`, for the same reason.
+>
+> **The margin it asks for is derived, not chosen.** A floor `x` dB below a
+> tone inflates it by `10·log10(1 + 10**(-x/10))`:
+>
+> | margin | induced error |
+> |---|---|
+> | 6 dB | 0.97 dB |
+> | 12 dB | 0.27 dB |
+> | **20 dB** | **0.043 dB** |
+> | 40 dB | 0.0004 dB |
+>
+> `DEFAULT_MIN_TONE_MARGIN_DB = 20.0`. Reusing the relative test's 40 dB was
+> four times stricter than the arithmetic asks, and it showed: it excluded
+> every tone in a room quiet enough to measure in. **Two constants that look
+> like the same idea can have one derivable answer and one judgement call.**
+
+> ### ⚠ A property that recomputed its own mask, and so ignored the caller's
+>
+> Found while wiring the above. `require_linear_path` computed a mask for the
+> "enough usable tones" check and then judged linearity with
+> `result.spread_db` — a **property** that internally calls `usable()` and
+> therefore rebuilt the *relative* mask, discarding whatever had just been
+> decided.
+>
+> Invisible for as long as the two agreed, which they always did, because both
+> called `usable()` with the same default. Wrong the instant they diverged —
+> which is exactly what supplying a floor does. The fix is
+> `spread_db_of(mask)`, and the lesson is that **a convenience property which
+> recomputes an input is a trap for the first caller who supplies that input
+> explicitly.**
+
+> ### ✅ The only instrument that sees noise *during* the sweep
+>
+> `PassSpread`, on every `Measurement`. `capture_sweep` already took repeats,
+> aligned them and medianed them per frequency bin; their **disagreement** was
+> already being computed and thrown away. It is a direct per-bin measurement of
+> how much the environment moved while the measurement was being taken — which
+> the idle probe, taken beforehand, is blind to. Electrical noise is stationary
+> so a snapshot was a fair sample; ambient noise is bursty and it is not.
+>
+> Two limits stated rather than left to be discovered:
+>
+> - At three passes, **two contaminated ones beat the median.** The spread
+>   still reports the disagreement, so the failure is visible — but visible is
+>   not corrected.
+> - A *sustained* change contaminates every pass equally and produces **no
+>   spread at all.** HVAC that switches on before the first repeat and stays on
+>   is invisible here, and belongs to the idle check.
+>
+> Magnitudes only. A residual alignment error is a phase ramp, and including
+> phase would report it as noise — growing with frequency, exactly where this
+> rig is already least validated.
+
+## Injecting a fault, so a bench run has a right answer
+
+`tuner.measure.fault.FaultFilter` filters the generated sweep **before** it is
+emitted, while the deconvolution still runs against the **unfiltered** sweep.
+The measured response is then `H_fault × H_system`, so the fault is part of
+the system as far as everything downstream can tell, and the tuner has to find
+it by measurement. `fault.response_db()` is the answer; a perfect correction is
+its exact negative, which makes a bench run scoreable against **zero**.
+
+Three reasons for injecting *there* and not somewhere more obvious, none
+interchangeable:
+
+- **A fault written into the DSP as an EQ band would be subtracted at fit
+  time** by `TuneRun._without_existing_eq`, so the tune would be right by
+  arithmetic rather than by hearing anything.
+- **A Windows APO would silently not apply.** System-wide equalisers live in
+  the shared audio engine, and this project opens its output in **WASAPI
+  exclusive** mode to reach 48 kHz alongside a UMIK-1. The run would correct
+  nothing and look entirely reasonable.
+- **`safety.apply` normalises to the requested level after the fault**, so a
+  fault carrying +12 dB shapes the stimulus but cannot raise it. The ramp
+  carries the fault too — a ramp probing an unfaulted signal verifies a chain
+  the measurement never uses.
+
+`Provenance.injected_fault` carries a fingerprint of the **label and the
+coefficients**, checked before the environmental terms. A label that stayed put
+while the filter moved is precisely the comparison that must not pass. A
+faulted capture is incomparable to a clean one, so a bench run is internally
+consistent and cannot masquerade as a real measurement.
+
+## A clipped input now says what to do about it
+
+It used to say `clipping detected on channel 1 (peak 0.9999)` — true, and
+useless. It now reports the peak in dBFS, the headroom, and **how many samples
+were at full scale**, because a handful and a percent want different responses:
+a handful is a transient and the sweep is worth repeating; a percent is a chain
+running hot and repeating it will fail the same way.
+
+It also names the knob. For a clipped *capture* that is the interface's input
+gain — the stimulus level is already ours and already limited, and lowering it
+instead buys headroom by giving away signal-to-noise, **which is the wrong
+instinct precisely because it also appears to work**.
+
+`inspect_capture()` is public so the bench tools can report headroom before a
+sweep is lost to it. `tune_run measure` prints it and flags both directions:
+under 6 dB is tight, and **over 30 dB is also wrong** — that is converter range
+thrown away, and it surfaces as a coarser repeatability floor rather than as
+anything resembling a fault.
+
 ## Measurement provenance
 
 Every stored measurement records: microphone calibration file (path and hash), interface and device identity, all gain settings, sample rate, timestamp, and ambient temperature.
