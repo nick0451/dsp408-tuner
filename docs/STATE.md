@@ -919,7 +919,8 @@ report what that compromise cost. `budget.normalize_delays` implemented.
 | `tools/ghidra/` | reproduces the firmware decompilation |
 
 **Captured evidence** — `captures/btsnoop_hci.log` (real device traffic),
-`*.DDP` in the repo root (fourteen tune snapshots), `Board Images/` (teardown
+`corpus/*.DDP` (41 vendor-app tune saves, mostly single-control A/Bs; see
+[corpus/README.md](../corpus/README.md)), `Board Images/` (teardown
 photographs). All are load-bearing: several conclusions rest on them and are
 pinned by tests.
 

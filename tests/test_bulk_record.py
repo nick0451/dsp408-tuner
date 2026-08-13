@@ -38,6 +38,10 @@ from tuner.dsp.protocol import (
 )
 
 REPO = Path(__file__).resolve().parents[1]
+#: The vendor-app .DDP corpus. Evidence, not fixtures -- these are real
+#: saves off a real device, and several decoded fields rest on the A/Bs
+#: among them.
+CORPUS = REPO / "corpus"
 CAPTURE = REPO / "captures" / "btsnoop_hci.log"
 
 #: DataID the app uses to read a whole output channel. Not in ``OutputBlock``
@@ -76,7 +80,7 @@ def _bulk_records() -> dict[int, bytes]:
 
 
 def _ddp_records(name: str) -> dict[int, bytes]:
-    backup = ddp.parse((REPO / name).read_bytes())
+    backup = ddp.parse((CORPUS / name).read_bytes())
     out = {}
     for ch in range(8):
         start = DDP_OUTPUT_BASE + ch * BLOCKS_PER_RECORD
@@ -200,8 +204,8 @@ class TestAgreesWithTheVendorApp:
         assert any(records[ch] != theirs[ch] for ch in range(8))
 
 
-MUTE_BEFORE = REPO / "eq_channel1_no_mute.DDP"
-MUTE_AFTER = REPO / "eq_channel1_mute.DDP"
+MUTE_BEFORE = CORPUS / "eq_channel1_no_mute.DDP"
+MUTE_AFTER = CORPUS / "eq_channel1_mute.DDP"
 
 
 @pytest.fixture(scope="module")
@@ -221,8 +225,8 @@ class TestMuteIsAnInvertedEnable:
     silences a channel -- or unsilences one muted deliberately.
     """
 
-    BEFORE = REPO / "eq_channel1_no_mute.DDP"
-    AFTER = REPO / "eq_channel1_mute.DDP"
+    BEFORE = CORPUS / "eq_channel1_no_mute.DDP"
+    AFTER = CORPUS / "eq_channel1_mute.DDP"
 
     def test_muting_changed_exactly_one_byte_in_the_whole_file(self, mute_pair):
         before, after = mute_pair
@@ -266,7 +270,7 @@ class TestMuteIsAnInvertedEnable:
         # because the sample grew. The claim was never about the number.
         disabled = {
             (path.name, i)
-            for path in sorted(REPO.glob("*.DDP"))
+            for path in sorted(CORPUS.glob("*.DDP"))
             if path.name not in {MUTE_BEFORE.name, MUTE_AFTER.name}
             for i, out in enumerate(ddp.parse(path.read_bytes()).outputs)
             if out.enabled != 1
@@ -296,7 +300,7 @@ class TestCrossoverSelectorsAreMapped:
 
     @staticmethod
     def _xover(name: str) -> OutputXover:
-        path = REPO / name
+        path = CORPUS / name
         if not path.exists():
             pytest.skip(f"{name} not present")
         blocks = ddp.parse(path.read_bytes()).blocks
@@ -364,7 +368,7 @@ class TestCrossoverSelectorsAreMapped:
         # OUT5's 450 Hz low-pass fitted a Linkwitz-Riley 4th-order crossover to
         # 0.247 dB rms on 2026-08-09 (450.1 Hz measured). This table has to say
         # LR4 for that record, or one of the two results is wrong.
-        blocks = ddp.parse((REPO / self.BASELINE).read_bytes()).blocks
+        blocks = ddp.parse((CORPUS / self.BASELINE).read_bytes()).blocks
         out5 = OutputXover.decode(blocks[DDP_OUTPUT_BASE + 4 * 37 + 32])
         assert out5.l_freq == 450
         assert out5.l_filter == XoverAlignment.LINKWITZ_RILEY
@@ -388,7 +392,7 @@ class TestEqBandTypeIsMapped:
 
     @staticmethod
     def _types(name: str) -> list[int]:
-        path = REPO / name
+        path = CORPUS / name
         if not path.exists():
             pytest.skip(f"{name} not present")
         blocks = ddp.parse(path.read_bytes()).blocks
@@ -426,7 +430,7 @@ class TestEqBandTypeIsMapped:
         # 0 on all 112 records was absence of variation, not absence of
         # meaning -- exactly as with the crossover selector bytes.
         assert EqBandType.PEQ == 0
-        for path in sorted(REPO.glob("*.DDP")):
+        for path in sorted(CORPUS.glob("*.DDP")):
             if path.name in {self.LS, self.HS, self.BOTH}:
                 continue
             blocks = ddp.parse(path.read_bytes()).blocks

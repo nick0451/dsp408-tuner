@@ -28,11 +28,13 @@ from tuner.dsp.ddp import (
 from tuner.dsp.protocol import EQ_FREQ_TABLE_HZ, OUTPUT_BULK_LEN, ProtocolError
 
 #: The real backup, if it is present. Absent in a fresh clone.
-REAL_BACKUP = Path(__file__).resolve().parents[1] / "dspcartunebackups.DDP"
+CORPUS = Path(__file__).resolve().parents[1] / "corpus"
+
+REAL_BACKUP = CORPUS / "dspcartunebackups.DDP"
 
 #: The same tune with output 1 reset to flat, saved 2026-08-08.
 FLAT_BACKUP = (
-    Path(__file__).resolve().parents[1] / "dspcartunebackups_flat_channel_1_diff.DDP"
+    CORPUS / "dspcartunebackups_flat_channel_1_diff.DDP"
 )
 
 
@@ -294,11 +296,11 @@ class TestResetToFlat:
 
 
 POWERCYCLE_BEFORE = (
-    Path(__file__).resolve().parents[1]
+    CORPUS
     / "dspcartunebackups_Channel4_preset_bypass_eq.DDP"
 )
 POWERCYCLE_AFTER = (
-    Path(__file__).resolve().parents[1]
+    CORPUS
     / "dspcartunebackups_Channel4_preset_bypass_eq_powercycled.DDP"
 )
 
@@ -382,7 +384,7 @@ class TestDiffCoversUndecodedOutputBlocks:
 
 
 EQ_LADDER = {
-    name: Path(__file__).resolve().parents[1] / f"eq_{name}.DDP"
+    name: CORPUS / f"eq_{name}.DDP"
     for name in ("1_baseline", "2_bypass_on", "3_bypass_off", "4_reset", "5_restore")
 }
 

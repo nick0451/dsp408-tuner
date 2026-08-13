@@ -33,6 +33,10 @@ from tuner.dsp.transport import LoopbackTransport
 from tuner.dsp.txpolicy import BlastRadius, TxPolicy, TxRefused
 
 REPO = Path(__file__).resolve().parents[1]
+#: The vendor-app .DDP corpus. Evidence, not fixtures -- these are real
+#: saves off a real device, and several decoded fields rest on the A/Bs
+#: among them.
+CORPUS = REPO / "corpus"
 GAIN_BLOCK = 31
 
 
@@ -335,7 +339,7 @@ class TestDdpInterop:
     """The independent restore path, through the vendor app."""
 
     def test_serialize_round_trips_every_backup_in_the_repo(self):
-        files = sorted(REPO.glob("*.DDP"))
+        files = sorted(CORPUS.glob("*.DDP"))
         assert files, "repo should hold vendor backups"
         for path in files:
             raw = path.read_bytes()
@@ -352,7 +356,7 @@ class TestDdpInterop:
     def test_splicing_a_matching_snapshot_reproduces_the_file(self, name):
         # Known-answer test: these backups already hold exactly the records
         # the capture read back, so splicing them in must be a no-op.
-        path = REPO / name
+        path = CORPUS / name
         original = path.read_bytes()
         backup = ddp.parse(original)
         records = [
@@ -367,7 +371,7 @@ class TestDdpInterop:
     def test_a_snapshot_can_be_written_as_a_loadable_ddp(self, tmp_path, rig):
         device, _, identity = rig
         shot = snap.capture(device, identity, now=0.0)
-        template = ddp.parse((REPO / "eq_1_baseline.DDP").read_bytes())
+        template = ddp.parse((CORPUS / "eq_1_baseline.DDP").read_bytes())
 
         blob = shot.to_ddp(template)
         rebuilt = ddp.parse(blob)
@@ -383,12 +387,12 @@ class TestDdpInterop:
         assert rebuilt.input_blocks(0) == template.input_blocks(0)
 
     def test_splice_rejects_the_wrong_number_of_records(self):
-        template = ddp.parse((REPO / "eq_1_baseline.DDP").read_bytes())
+        template = ddp.parse((CORPUS / "eq_1_baseline.DDP").read_bytes())
         with pytest.raises(ProtocolError, match="need 8"):
             ddp.splice_outputs(template, [bytes(296)] * 7)
 
     def test_splice_rejects_a_wrong_record_length(self):
-        template = ddp.parse((REPO / "eq_1_baseline.DDP").read_bytes())
+        template = ddp.parse((CORPUS / "eq_1_baseline.DDP").read_bytes())
         with pytest.raises(ProtocolError, match="expected 296"):
             ddp.splice_outputs(template, [bytes(100)] * 8)
 
