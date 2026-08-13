@@ -33,9 +33,7 @@ CORPUS = Path(__file__).resolve().parents[1] / "corpus"
 REAL_BACKUP = CORPUS / "dspcartunebackups.DDP"
 
 #: The same tune with output 1 reset to flat, saved 2026-08-08.
-FLAT_BACKUP = (
-    CORPUS / "dspcartunebackups_flat_channel_1_diff.DDP"
-)
+FLAT_BACKUP = CORPUS / "dspcartunebackups_flat_channel_1_diff.DDP"
 
 
 def _blank_file(preset: str = "Custom") -> bytearray:
@@ -295,13 +293,9 @@ class TestResetToFlat:
         assert changed == {1, 7, 8}
 
 
-POWERCYCLE_BEFORE = (
-    CORPUS
-    / "dspcartunebackups_Channel4_preset_bypass_eq.DDP"
-)
+POWERCYCLE_BEFORE = CORPUS / "dspcartunebackups_Channel4_preset_bypass_eq.DDP"
 POWERCYCLE_AFTER = (
-    CORPUS
-    / "dspcartunebackups_Channel4_preset_bypass_eq_powercycled.DDP"
+    CORPUS / "dspcartunebackups_Channel4_preset_bypass_eq_powercycled.DDP"
 )
 
 

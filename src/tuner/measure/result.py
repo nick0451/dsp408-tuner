@@ -67,6 +67,10 @@ class Provenance:
         device: Interface and device identity string.
         gains_db: Per-input preamp gain settings.
         sample_rate_hz: Capture rate.
+        injected_fault: Fingerprint of a deliberate fault filtered into the
+            stimulus, for bench known-answer work. ``None`` for a real
+            measurement. Gates comparability absolutely -- see
+            :meth:`why_incomparable`.
         setup_token: The operator's verbatim claim about the physical setup.
             See :meth:`comparable_to`; required for acoustic measurements.
         temperature_c: Ambient temperature, for acoustic measurements.
@@ -82,6 +86,7 @@ class Provenance:
     temperature_c: float | None = None
     coupling: Coupling = Coupling.ACOUSTIC
     setup_token: str | None = None
+    injected_fault: str | None = None
 
     def __post_init__(self) -> None:
         if self.setup_token is not None:
@@ -119,6 +124,20 @@ class Provenance:
             return f"different preamp gains: {self.gains_db} vs {other.gains_db}"
         if self.cal_sha256 != other.cal_sha256:
             return "different microphone calibration file (by content hash)"
+
+        # Before anything environmental, because this one is not a matter of
+        # degree. A capture with a deliberate fault filtered into its stimulus
+        # is not a measurement of the system; it is a measurement of the
+        # system *plus a known lie*, and the only thing it may be compared
+        # with is another capture telling exactly the same lie.
+        if self.injected_fault != other.injected_fault:
+            here = self.injected_fault or "none"
+            there = other.injected_fault or "none"
+            return (
+                f"different injected fault: {here} vs {there}. A capture with "
+                f"a deliberate fault in its stimulus cannot be compared with a "
+                f"clean one, or with a differently-faulted one"
+            )
         if self.coupling is not other.coupling:
             return (
                 f"different coupling: {self.coupling.value} vs "

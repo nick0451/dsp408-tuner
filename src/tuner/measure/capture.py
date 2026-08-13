@@ -30,6 +30,7 @@ from ..safety.limits import (
     ramp_levels_dbfs,
 )
 from .deconv import deconvolve, peak_index
+from .fault import FaultFilter
 from .qa import (
     DEFAULT_MIN_RESPONSE_DB,
     DEFAULT_MIN_SNR_DB,
@@ -113,6 +114,17 @@ class CaptureConfig:
     #: reject an outlier; one cannot detect a dropout at all.
     repeats: int = 3
 
+    #: A deliberate fault filtered into the stimulus, for bench known-answer
+    #: work. See :mod:`tuner.measure.fault`. Applied **before** the safety
+    #: limiter, so it shapes the stimulus and cannot raise its level, and the
+    #: deconvolution still runs against the unfiltered sweep -- so the fault
+    #: reads as part of the system under test, which is the point.
+    #:
+    #: Its fingerprint lands in provenance and makes the capture incomparable
+    #: to a clean one. A corrupted measurement must not be able to masquerade
+    #: as a real one.
+    fault: FaultFilter | None = None
+
     #: Check the idle noise floor before emitting anything. On by default: the
     #: interference this catches does not look like interference afterwards,
     #: it looks like a smooth and slightly wrong frequency response.
@@ -181,6 +193,13 @@ def _device_name(device: str | int | tuple[int, int] | SplitDevices | None) -> s
 QUIET_PROBE_DURATION_S = 1.0
 
 
+def _with_fault(config: CaptureConfig, samples: np.ndarray) -> np.ndarray:
+    """Filter the stimulus through the configured fault, if there is one."""
+    if config.fault is None:
+        return samples
+    return config.fault.apply_to(samples, config.sample_rate_hz)
+
+
 def _verify_quiet(config: CaptureConfig) -> dict[int, IdleNoiseResult]:
     """Refuse to measure through a path that is not quiet at rest.
 
@@ -233,7 +252,10 @@ def _run_safety_ramp(
     captured_rms: dict[int, list[float]] = {ch: [] for ch in config.input_channels}
     for level in levels[:-1]:
         probe = sweep_gen(PROBE_DURATION_S)
-        stimulus = apply(probe.samples, level, config.limit)
+        # The ramp carries the fault too. Its job is to catch a chain that is
+        # not what the code thinks it is, and a ramp probing an unfaulted
+        # signal would be verifying a chain the measurement never uses.
+        stimulus = apply(_with_fault(config, probe.samples), level, config.limit)
         captured = play_record(
             stimulus,
             output_channel=config.output_channel,
@@ -460,7 +482,12 @@ def capture_sweep(
         _run_safety_ramp(config, make_sweep, idle)
 
     sweep = make_sweep(config.duration_s)
-    stimulus = apply(sweep.samples, config.level_dbfs, config.limit)
+    # Fault first, limiter second. `apply` normalises to unity peak before
+    # scaling to the requested level, so whatever gain the fault carries is
+    # normalised away and only its *shape* reaches the output -- a fault with
+    # +12 dB in it cannot make the stimulus louder than it was asked to be.
+    emitted = _with_fault(config, sweep.samples)
+    stimulus = apply(emitted, config.level_dbfs, config.limit)
 
     passes = [_single_pass(config, sweep, stimulus) for _ in range(config.repeats)]
     has_reference = passes[0][1]
@@ -475,6 +502,7 @@ def capture_sweep(
         temperature_c=session.temperature_c,
         coupling=session.coupling,
         setup_token=session.setup_token,
+        injected_fault=config.fault.fingerprint() if config.fault else None,
     )
 
     notes = dict(session.notes)
