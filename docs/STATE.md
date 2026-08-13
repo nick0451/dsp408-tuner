@@ -229,6 +229,48 @@ would have been recorded as if it had gone down a cable. Now derived from
 session with no `--setup-token` **before the DSP is contacted and before any
 stimulus is emitted**.
 
+#### ⚠ A single-tone gain reading repeats to 0.6-1.9 dB sd here, and it is not the estimator
+
+Measured, because three runs of the same check had reported spreads of 0.08,
+0.31 and 1.25 dB on an unchanged rig -- the signature of a tolerance sitting
+inside the measurement's own noise rather than of a compressor.
+
+Five identical runs, nothing touched, on a path with no known compressor:
+
+| tone | sd of one reading | range | across-level spread |
+|---|---|---|---|
+| 900 Hz | **1.77 dB** | 4.88 dB | 0.32 - 3.08 dB |
+| 1255 Hz | 0.90 dB | 2.37 dB | 0.02 - 2.34 dB |
+| 1600 Hz | 0.57 dB | 1.43 dB | 0.63 - 2.65 dB |
+
+**`DEFAULT_TOLERANCE_DB = 1.0` is therefore inside this rig's noise**, and
+every `NonLinearPath` verdict from the bench today was the check failing to
+resolve anything rather than a finding. That figure was derived on an
+electrical loopback and has not been re-derived for a room.
+
+**The estimator was ruled out before the threshold was touched**, which is
+the right order. `measure_level_linearity` reads a single FFT bin, and two
+things could have made that fragile here that did not exist electrically: the
+independent clocks put the tone off-bin, where a Hann window loses up to
+1.42 dB to scalloping, and the capture window's start moves between runs.
+Both are estimator faults and both are cured by integrating power over more
+bins. Computing four estimators from the **same** captures:
+
+| tone | 1 bin | ±2 bins | ±10 | ±50 |
+|---|---|---|---|---|
+| 900 Hz | 1.92 | 1.89 | 1.86 | 1.85 |
+| 1255 Hz | 0.59 | 0.58 | 0.57 | 0.57 |
+| 1600 Hz | 1.00 | 1.00 | 1.00 | 0.99 |
+
+Flat. Widening the integration a hundredfold changes nothing, so the FFT is
+reporting faithfully and **the acoustic level really is moving**. Cause not
+yet established; a REW cross-reference is the next instrument, since it
+answers "is this rig physically unstable" without sharing any code with us.
+
+Not fixed, and the fix is not a looser tolerance on its own -- `measure`'s
+tone reading takes one capture per (frequency, level) where `capture_sweep`
+takes three and medians them per bin. Averaging is the first thing to try.
+
 #### Still open: the bench environment is not stable enough to characterise
 
 Idle floor across four consecutive runs on an unchanged rig: **−82.7, −64.8,

@@ -870,8 +870,10 @@ def cmd_measure(args) -> int:
     # Tones inside this channel's passband. The module default is
     # 300/1000/3000 Hz and 300 Hz sits in OUT1's stopband, where a level sweep
     # measures the high-pass skirt rather than the path's linearity.
-    tones = _passband_tones(live)
+    tones = tuple(args.tones) if args.tones else _passband_tones(live)
     print(f"\nLevel linearity at {tones} Hz (~14 s) ...")
+    if args.tones:
+        print("  frequencies chosen by the operator, not from the crossover")
     idle = measure_idle_noise(
         sample_rate_hz=sample_rate_hz,
         input_channel=in_channels[0],
@@ -1613,6 +1615,21 @@ def main() -> int:
             "idle seconds between floor sweeps. The floor is used to judge "
             "measurements taken minutes apart, so back-to-back repeats "
             "understate it -- spread them over the time a tuning run takes."
+        ),
+    )
+    p.add_argument(
+        "--tones",
+        type=float,
+        nargs="+",
+        default=None,
+        metavar="HZ",
+        help=(
+            "frequencies the linearity check probes. The default derives them "
+            "from the channel's crossover corners alone, which is blind both "
+            "to the EQ loaded on the channel and to what the loudspeaker does "
+            "-- on this bench the lowest default tone landed in the 2.1 "
+            "system's own satellite crossover and reported 11 dB of "
+            "non-linearity that the other two tones did not see."
         ),
     )
     p.add_argument(
