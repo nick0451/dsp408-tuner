@@ -524,6 +524,35 @@ under 6 dB is tight, and **over 30 dB is also wrong** — that is converter rang
 thrown away, and it surfaces as a coarser repeatability floor rather than as
 anything resembling a fault.
 
+> ### ⚠ Padding a short capture hid an all-zero measurement
+>
+> Found 2026-08-13, first time the split-clock path met hardware.
+>
+> `_play_record_split` reads the input stream's frame count to learn where
+> playback began, *before* `write()` returns. A cold WASAPI exclusive open can
+> take a long time, and when it does the capture window lands past the end of
+> the recording. The code padded the shortfall with zeros and returned.
+>
+> **An all-zero capture deconvolves into a smooth, entirely plausible
+> frequency response.** Nothing downstream can tell. It was seen live: one
+> probe returned `-inf dBFS peak` and the next, seconds later, returned real
+> ambient through the same cable.
+>
+> It refuses now, naming how many frames are missing. About one buffer is
+> still padded -- the capture does legitimately close a moment after the last
+> frame plays -- and anything larger is an error.
+>
+> Two things worth carrying:
+>
+> - **Padding is a decision to fabricate data.** It is nearly always dressed
+>   as robustness. Here the fabricated value was silence, which is the one
+>   value the measurement chain cannot distinguish from a valid result.
+> - **The fake could not reproduce it** until it was taught to deliver *fewer*
+>   frames during playback than were played. It had been written to always
+>   return exactly as many as it was given -- the healthy case, and only the
+>   healthy case. *A test double that models only success cannot fail the way
+>   hardware does.*
+
 ## Measurement provenance
 
 Every stored measurement records: microphone calibration file (path and hash), interface and device identity, all gain settings, sample rate, timestamp, and ambient temperature.

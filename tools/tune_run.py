@@ -625,15 +625,77 @@ def _leading_run(workdir: Path):
 OUT_DEVICE = "Speakers (Scarlett Solo USB)"
 IN_DEVICE = "Microphone (Scarlett Solo USB)"
 
+#: The measurement microphone. USB, so it is on its own clock and cannot
+#: share a stream with the interface -- see tuner.audio.io.SplitDevices.
+MIC_DEVICE = "Microphone (Umik-1"
+
 #: Interface output 0, interface input 1 -- the Solo's instrument input, where
 #: ``docs/hardware.md`` puts the DUT. The same two numbers ``bench_golden.py``
 #: used for the REW comparison, so this measures the path that was validated.
 OUT_CHANNEL = 0
 IN_CHANNEL = 1
 
+#: The UMIK-1 accepts 48 kHz and nothing else, which is also the DSP's own
+#: rate -- so a microphone session has one fewer conversion in it than the
+#: loopback rig does at 44.1 kHz.
+MIC_RATE_HZ = 48_000
+
 
 def _devices(host_api: str) -> tuple[str, str]:
     return (f"{IN_DEVICE}, {host_api}", f"{OUT_DEVICE}, {host_api}")
+
+
+def _mic_name(host_api: str) -> str:
+    """Resolve the microphone by name, never by index.
+
+    Its index moved from 26 to 31 between two sessions on this bench. A
+    hard-coded index would have pointed the capture at whatever landed there.
+    """
+    import sounddevice as sd
+
+    matches = [
+        f"{d['name']}, {sd.query_hostapis(d['hostapi'])['name']}"
+        for d in sd.query_devices()
+        if d["max_input_channels"] > 0
+        and MIC_DEVICE.lower() in d["name"].lower()
+        and host_api.lower() in sd.query_hostapis(d["hostapi"])["name"].lower()
+    ]
+    if len(matches) != 1:
+        raise SystemExit(
+            f"expected exactly one {MIC_DEVICE!r} input on {host_api}, "
+            f"found {len(matches)}: {matches}"
+        )
+    return matches[0]
+
+
+def _capture_path(args) -> tuple[object, int, tuple[int, ...]]:
+    """(device, sample rate, input channels) for whichever rig is in use.
+
+    Two shapes, and they are not interchangeable:
+
+    * **Loopback** -- the interface at both ends, one clock, an electrical
+      measurement of the DSP's own output. Absolute delay is available.
+    * **Microphone** (``--mic``) -- a UMIK-1 on its own clock, so playback and
+      capture are separate streams and the interface output must be opened in
+      WASAPI **exclusive** mode to reach the 48 kHz the UMIK is fixed at.
+      Magnitude only, by construction: ``play_record`` refuses a loopback
+      across a split clock.
+    """
+    from tuner.audio.io import SplitDevices
+
+    if not getattr(args, "mic", False):
+        pair = _devices(args.host_api)
+        return pair, _sample_rate(pair), (IN_CHANNEL,)
+
+    return (
+        SplitDevices(
+            output=f"{OUT_DEVICE}, {args.host_api}",
+            input=_mic_name(args.host_api),
+            output_exclusive=True,
+        ),
+        MIC_RATE_HZ,
+        (0,),
+    )
 
 
 def _sample_rate(device: tuple[str, str]) -> int:
@@ -709,13 +771,16 @@ def cmd_measure(args) -> int:
     """
     from tuner.measure.capture import CaptureConfig, SessionInfo, capture_sweep
     from tuner.measure.metrics import log_freqs
-    from tuner.measure.qa import measure_level_linearity, require_linear_path
+    from tuner.measure.qa import (
+        measure_idle_noise,
+        measure_level_linearity,
+        require_linear_path,
+    )
     from tuner.optimize.target import from_points
     from tuner.optimize.verify import measure_repeatability
     from tuner.orchestrate.objective import MagnitudeObjective
 
-    device = _devices(args.host_api)
-    sample_rate_hz = _sample_rate(device)
+    device, sample_rate_hz, in_channels = _capture_path(args)
     output = args.output - 1
 
     session_dsp, backend, transport = _live_backend(args)
@@ -753,22 +818,34 @@ def cmd_measure(args) -> int:
     # measures the high-pass skirt rather than the path's linearity.
     tones = _passband_tones(live)
     print(f"\nLevel linearity at {tones} Hz (~14 s) ...")
+    idle = measure_idle_noise(
+        sample_rate_hz=sample_rate_hz,
+        input_channel=in_channels[0],
+        output_channel=OUT_CHANNEL,
+        device=device,
+    )
+    print()
+    print("Idle noise floor")
+    print(idle.report())
     linearity = measure_level_linearity(
         sample_rate_hz=sample_rate_hz,
         output_channel=OUT_CHANNEL,
-        input_channel=IN_CHANNEL,
+        input_channel=in_channels[0],
         device=device,
         limit=limit,
         freqs_hz=tones,
     )
-    require_linear_path(linearity)
+    # Absolute, against the floor just measured -- see qa.usable_against. A
+    # relative test cannot see a mains harmonic or a blower tone landing on a
+    # test frequency, and in a room that is the case that bites.
+    require_linear_path(linearity, idle=idle)
     print(f"  gain spread {linearity.spread_db:.2f} dB across level -- linear.")
 
     capture = CaptureConfig(
         sample_rate_hz=sample_rate_hz,
         device=device,
         output_channel=OUT_CHANNEL,
-        input_channels=(IN_CHANNEL,),
+        input_channels=in_channels,
         level_dbfs=args.level_dbfs,
         limit=limit,
         repeats=args.repeats,
@@ -799,7 +876,7 @@ def cmd_measure(args) -> int:
     for i in range(args.trials):
         if i and args.spacing_s:
             time.sleep(args.spacing_s)
-        curves.append(capture_sweep(capture, info)[IN_CHANNEL])
+        curves.append(capture_sweep(capture, info)[in_channels[0]])
         print(f"  {i + 1}/{args.trials}")
     span_s = time.monotonic() - started_s
 
@@ -1426,6 +1503,16 @@ def main() -> int:
     )
     p.add_argument("--repeats", type=int, default=3, help="passes per sweep, medianed")
     p.add_argument("--trials", type=int, default=3, help="sweeps for the floor")
+    p.add_argument(
+        "--mic",
+        action="store_true",
+        help=(
+            "measure through the UMIK-1 instead of the interface loopback. "
+            "Two streams on two clocks at 48 kHz, interface output in WASAPI "
+            "exclusive mode. Magnitude only -- a split clock cannot carry a "
+            "timing reference, and play_record refuses one."
+        ),
+    )
     p.add_argument(
         "--spacing-s",
         type=float,

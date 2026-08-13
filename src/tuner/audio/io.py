@@ -47,6 +47,13 @@ from ..safety.limits import DEFAULT_CEILING_DBFS, SafetyViolation
 #: capture that was not yet running.
 SPLIT_LEAD_IN_S = 0.25
 
+#: Frames the capture may fall short by before it is treated as a failure
+#: rather than an edge. One buffer is ordinary -- the capture closes a moment
+#: after the last frame is played. Anything much larger means the window
+#: landed past the end of the recording, and the reason is almost always a
+#: slow output-stream start.
+MAX_SPLIT_SHORTFALL = 2048
+
 
 @dataclass(frozen=True)
 class LoopbackConfig:
@@ -177,8 +184,32 @@ def _play_record_split(
 
     captured = np.concatenate(frames)
     window = captured[started_at : started_at + playback.shape[0]]
-    if window.shape[0] < playback.shape[0]:
-        short = playback.shape[0] - window.shape[0]
+    short = playback.shape[0] - window.shape[0]
+
+    # A shortfall of about a buffer is the ordinary case: the capture is
+    # closed a moment after the last frame is played. Anything larger means
+    # the window landed past the end of what was captured, and the usual
+    # cause is the output stream taking a long time to start -- a cold WASAPI
+    # exclusive open can run into seconds, and `started_at` is read before
+    # `write()` returns.
+    #
+    # **This must raise rather than pad.** Found on the bench 2026-08-13, the
+    # first time this path met hardware: the run silently returned an
+    # all-zero buffer, and an all-zero capture deconvolves into a smooth,
+    # entirely plausible frequency response. That is the exact failure this
+    # project's rig-verification rules exist to prevent, reintroduced by the
+    # convenience of padding.
+    if short > max(MAX_SPLIT_SHORTFALL, playback.shape[0] // 100):
+        raise SafetyViolation(
+            f"the capture window landed past the end of the recording: "
+            f"{short} of {playback.shape[0]} frames missing, starting at "
+            f"{started_at} of {captured.shape[0]} captured. The output "
+            f"stream almost certainly took a long time to start. Nothing "
+            f"here is measurable -- an all-zero capture deconvolves into a "
+            f"smooth and completely wrong curve, so this refuses rather "
+            f"than padding."
+        )
+    if short > 0:
         window = np.vstack([window, np.zeros((short, window.shape[1]))])
     return np.asarray(window[:, capture_channels], dtype=np.float64)
 

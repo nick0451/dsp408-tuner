@@ -17,7 +17,7 @@ is gone; do not recreate one above the project.
 it ran on 2026-08-12: arm, isolation, floor, baseline, fit, write, verify,
 settle, accepted, device restored and verified byte-identical afterwards.
 
-    pytest 1508 passing    ruff clean
+    pytest 1512 passing    ruff clean
     dsp408_probe rehearse 29/29    tune_run rehearse 41/41
 
 **Since then, two fixes, both below.**
@@ -203,6 +203,59 @@ with the car half-written.
 analog stage at all -- but a vendor app over USB-B is one of the three measured
 arbitration signatures that kills the RFCOMM link, so streaming audio in over
 USB while holding a control link may do the same. Measure before cabling.
+
+### First attempt at air, 2026-08-13. No measurement, three findings.
+
+The bench session ran and produced **no acoustic measurement** -- the operator
+found no output from the interface at all and went to check cabling. The
+attempt was still worth its time, because everything up to the speaker was
+exercised for the first time.
+
+**The pre-flight is clean.** `mic_check` opened both streams at 48 kHz with the
+interface output in WASAPI exclusive mode and captured a **-92.1 dBFS idle
+floor** -- a very quiet room, and 20 dB better than the figure taken earlier
+the same day, which had a stream start-up transient in it.
+
+**The microphone's device index moved from 26 to 31 between two sessions on the
+same machine, with no hardware change.** Name-based lookup absorbed it in
+silence. A hard-coded index would have pointed the capture at whatever landed
+in slot 26. The rule against selecting by index has now paid twice.
+
+**Outputs 1 and 2 are the car's midrange channels**, high-passed at 450 Hz and
+low-passed at 3500 Hz. That is convenient -- it is exactly the band
+independently validated against REW -- but it means **the 5-20 kHz reference
+chirp cannot pass them.** The acoustic timing reference is untestable on these
+outputs and needs either a different channel or a crossover change. Magnitude
+work is unaffected.
+
+> #### ⚠ And a real bug, which is what first contact is for
+>
+> `_play_record_split` computes where the playback began by reading the input
+> stream's frame count *before* `write()` returns. A cold WASAPI exclusive
+> open can be slow, and when it is, the capture window lands past the end of
+> what was recorded. The original code **padded the shortfall with zeros**.
+>
+> So the call returned an **all-zero buffer and said nothing** -- and an
+> all-zero capture deconvolves into a smooth, entirely plausible frequency
+> response. That is the precise failure this project's rig-verification rules
+> exist to prevent, reintroduced by the convenience of padding. It was
+> observed live: the first probe returned `-inf dBFS peak` while the second,
+> moments later, returned real ambient.
+>
+> It now raises. A shortfall of about one buffer is still padded, because the
+> capture legitimately closes a moment after the last frame plays; anything
+> larger is a refusal that names how many frames are missing.
+>
+> **The tests could not have found this**, and the fake could not reproduce it
+> until it was given the ability to *under-deliver* during playback -- it had
+> been written to always hand back exactly as many frames as were played,
+> which is the healthy case and only the healthy case. *A test double that
+> models only success cannot fail the way hardware does.*
+
+The tooling gained `tune_run measure --mic`, which routes the bench commands
+through `SplitDevices` instead of the interface loopback, and runs the
+linearity check against the idle floor it has just measured rather than
+relative to the loudest tone.
 
 ### Built 2026-08-13, none of it run against air yet
 
@@ -625,7 +678,7 @@ app connected over USB-B the device accepts the Bluetooth RFCOMM link and then
 ignores it completely — no reply, no error, no disconnect. Detach USB before
 opening the socket.
 
-`pytest` → **1508 passing**, `ruff check .` → clean, `dsp408_probe rehearse` →
+`pytest` → **1512 passing**, `ruff check .` → clean, `dsp408_probe rehearse` →
 29/29, `tune_run rehearse` → 41/41. Everything runs with no hardware attached.
 
 ### What the bench session settled
@@ -977,7 +1030,7 @@ report what that compromise cost. `budget.normalize_delays` implemented.
 photographs). All are load-bearing: several conclusions rest on them and are
 pinned by tests.
 
-**Tests: 1508.** Of these, 209 are the protocol golden frames and 18 the bulk
+**Tests: 1512.** Of these, 209 are the protocol golden frames and 18 the bulk
 record — both checked against evidence from outside this project. The rest are
 largely self-referential by necessity: **the suite runs against `sim.py`, which
 encodes our model of the device, including the knowingly-wrong single-pool
@@ -2038,7 +2091,7 @@ is **not** the HF artifact (alignment suppresses it to ~0.1–0.36 dB, an order 
 magnitude too small), and my first replacement for it measured *worse* than what
 it replaced. Both were caught by measuring rather than reasoning.
 
-Test count went 237 → 577 → 1058 → 1159 → 1241 → 1258 → 1292 → 1294 → 1297 → 1316 → 1327 → 1334 → 1347 → 1354 → 1365 → 1371 → 1388 → 1392 → 1396 → 1408 → 1454 → **1508**.
+Test count went 237 → 577 → 1058 → 1159 → 1241 → 1258 → 1292 → 1294 → 1297 → 1316 → 1327 → 1334 → 1347 → 1354 → 1365 → 1371 → 1388 → 1392 → 1396 → 1408 → 1454 → 1508 → **1512**.
 
 #### Standing rules for bench sessions
 

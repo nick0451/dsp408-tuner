@@ -46,10 +46,15 @@ class FakeStream:
 
     def write(self, data: np.ndarray) -> None:
         self.owner.written.append(np.asarray(data).copy())
-        # A real device keeps capturing while it plays.
+        # A real device keeps capturing while it plays -- but not necessarily
+        # for as long as the playback, which is the whole point of
+        # `frames_during_playback`.
+        during = self.owner.frames_during_playback
         for stream in self.owner.opened:
             if stream.kind == "input":
-                self.owner.deliver(stream, frames=len(data))
+                self.owner.deliver(
+                    stream, frames=len(data) if during is None else during
+                )
 
 
 @dataclass
@@ -57,6 +62,10 @@ class FakePortAudio:
     """Records what was asked for, and hands back a synthetic capture."""
 
     input_frames_before_playback: int = 512
+    #: Frames delivered while the playback runs. ``None`` means "as many as
+    #: were played", which is the healthy case. A smaller number models a
+    #: capture that ended early -- what a slow output-stream start produces.
+    frames_during_playback: int | None = None
     silent: bool = False
     devices: dict = field(default_factory=dict)
     opened: list = field(default_factory=list)
@@ -246,3 +255,53 @@ class TestExclusiveModeGuard:
                     output="mme thing", input="in", output_exclusive=True
                 ),
             )
+
+
+class TestTheWindowLandingPastTheRecording:
+    """Found on the bench 2026-08-13, first time this path met hardware.
+
+    A cold WASAPI exclusive open can take a long time, and ``started_at`` is
+    read before ``write()`` returns. When the open is slow the capture window
+    lands past the end of what was recorded, and the original code **padded
+    with zeros** -- so the call returned an all-zero buffer and said nothing.
+
+    An all-zero capture deconvolves into a smooth, entirely plausible
+    frequency response. That is precisely the failure the rig-verification
+    rules exist to prevent, reintroduced by the convenience of padding.
+    """
+
+    def _run(self, fake_pa):
+        return play_record(
+            a_stimulus(8192),
+            output_channel=0,
+            input_channels=[0],
+            sample_rate_hz=48_000,
+            device=SPLIT,
+            tail_s=0.0,
+        )
+
+    def test_a_large_shortfall_raises_rather_than_padding(self, fake_pa):
+        # A slow output start: plenty captured before playback began, and
+        # little after it, so the window runs off the end of the recording.
+        fake_pa.frames_during_playback = 1_000
+        with pytest.raises(SafetyViolation, match="past the end of the recording"):
+            self._run(fake_pa)
+
+    def test_the_refusal_says_how_much_is_missing(self, fake_pa):
+        fake_pa.frames_during_playback = 1_000
+        with pytest.raises(SafetyViolation) as excinfo:
+            self._run(fake_pa)
+        text = str(excinfo.value)
+        assert "frames missing" in text
+        assert "smooth and completely wrong curve" in text
+
+    def test_an_ordinary_short_tail_is_still_padded(self, fake_pa):
+        # One buffer's shortfall is the normal case -- the capture closes a
+        # moment after the last frame plays -- and must not become an error.
+        fake_pa.frames_during_playback = 8192 - 480
+        assert self._run(fake_pa).shape == (8192, 1)
+
+    def test_a_normal_capture_is_unaffected(self, fake_pa):
+        # Vacuity: the guard must not fire on the case it was built around.
+        fake_pa.input_frames_before_playback = 512
+        assert self._run(fake_pa).shape == (8192, 1)
