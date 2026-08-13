@@ -159,3 +159,93 @@ class TestCeilingFromDeviceState:
         limit = safety.ceiling_for_device_state(6.0, (12.0,), driver_ceiling_dbfs=-6.0)
         assert limit.ceiling_dbfs == -24.0
         assert limit.characterized
+
+
+class TestTheCaptureLevelReport:
+    """Setting input gain is otherwise guesswork, and guessing costs retries.
+
+    In a car a retry costs a seat position, so the numbers an operator needs
+    to set gain once are worth reporting rather than leaving them to be
+    inferred from whether the sweep survived.
+    """
+
+    def test_headroom_is_reported_for_a_clean_capture(self):
+        from tuner.safety.limits import inspect_capture
+
+        quiet = 0.1 * np.sin(np.linspace(0, 100, 4096))
+        level = inspect_capture(quiet)
+        assert level.peak_dbfs == pytest.approx(-20.0, abs=0.1)
+        assert level.headroom_db == pytest.approx(20.0, abs=0.1)
+        assert not level.clipped
+
+    def test_an_empty_capture_does_not_divide_by_zero(self):
+        from tuner.safety.limits import inspect_capture
+
+        level = inspect_capture(np.array([]))
+        assert level.n_samples == 0
+        assert level.fraction_at_ceiling == 0.0
+        assert not level.clipped
+
+    def test_it_counts_how_much_of_the_capture_is_at_full_scale(self):
+        from tuner.safety.limits import inspect_capture
+
+        buffer = np.full(1000, 0.5)
+        buffer[:37] = 1.0
+        level = inspect_capture(buffer)
+        assert level.samples_at_ceiling == 37
+        assert level.fraction_at_ceiling == pytest.approx(0.037)
+
+
+class TestTheClippingDiagnosis:
+    """A bare peak said it happened and nothing about what to do."""
+
+    def _clip(self, n_clipped: int, total: int = 10_000) -> np.ndarray:
+        buffer = np.full(total, 0.3)
+        buffer[:n_clipped] = 1.0
+        return buffer
+
+    def test_a_few_samples_reads_as_a_transient(self):
+        # Worth simply repeating the sweep -- a connector nudged, a door shut.
+        from tuner.safety.limits import SafetyViolation, assert_capture_sane
+
+        with pytest.raises(SafetyViolation, match="transient"):
+            assert_capture_sane(self._clip(3))
+
+    def test_sustained_clipping_says_repeating_will_not_help(self):
+        # A chain running hot fails the same way every time, and telling the
+        # operator to try again would waste the session.
+        from tuner.safety.limits import SafetyViolation, assert_capture_sane
+
+        with pytest.raises(SafetyViolation, match="running hot"):
+            assert_capture_sane(self._clip(900))
+
+    def test_the_message_names_the_knob(self):
+        # For a clipped capture that is the interface input gain. Lowering the
+        # stimulus would buy headroom by giving away signal-to-noise, and it
+        # is the wrong instinct precisely because it also "works".
+        from tuner.safety.limits import SafetyViolation, assert_capture_sane
+
+        with pytest.raises(SafetyViolation, match="input gain"):
+            assert_capture_sane(self._clip(900))
+
+    def test_the_message_carries_the_numbers_to_act_on(self):
+        from tuner.safety.limits import SafetyViolation, assert_capture_sane
+
+        with pytest.raises(SafetyViolation) as excinfo:
+            assert_capture_sane(self._clip(900), channel=2)
+        text = str(excinfo.value)
+        assert "channel 2" in text
+        assert "dBFS" in text
+        assert "900 of 10000" in text
+
+    def test_a_clean_capture_still_passes(self):
+        # Vacuity: the diagnosis must not fire on an ordinary measurement.
+        from tuner.safety.limits import assert_capture_sane
+
+        assert_capture_sane(0.4 * np.sin(np.linspace(0, 500, 8192)))
+
+    def test_dc_offset_suggests_where_to_look(self):
+        from tuner.safety.limits import SafetyViolation, assert_capture_sane
+
+        with pytest.raises(SafetyViolation, match="phantom-power"):
+            assert_capture_sane(np.full(1000, 0.5))

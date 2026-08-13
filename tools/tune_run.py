@@ -803,6 +803,11 @@ def cmd_measure(args) -> int:
         print(f"  {i + 1}/{args.trials}")
     span_s = time.monotonic() - started_s
 
+    # How hard the converter was driven. Printed because setting input gain is
+    # otherwise guesswork, and a session that discovers it had 1 dB of
+    # headroom discovers it by losing a sweep.
+    _report_headroom(capture, info)
+
     # The target is the first sweep's own magnitude, so the score of a repeat
     # is literally "how far did this drift from the first". Level-matched
     # inside the objective, which is what makes it a shape comparison.
@@ -840,6 +845,40 @@ def cmd_measure(args) -> int:
         "much less than a tuning run will, re-run it with --spacing-s."
     )
     return 0
+
+
+def _report_headroom(capture, info) -> None:
+    """Measure the input peak on a short probe and say what it means.
+
+    Setting input gain is otherwise guesswork, and a session that discovers
+    it had 1 dB of headroom discovers it by losing a sweep. In a car a lost
+    sweep costs a seat position.
+    """
+    from tuner.audio.io import play_record
+    from tuner.measure.sweep import log_sweep
+    from tuner.safety.limits import apply, inspect_capture
+
+    probe = log_sweep(200.0, 8_000.0, 0.3, capture.sample_rate_hz)
+    stimulus = apply(probe.samples, capture.level_dbfs, capture.limit)
+    recorded = play_record(
+        stimulus,
+        output_channel=capture.output_channel,
+        input_channels=list(capture.input_channels),
+        sample_rate_hz=capture.sample_rate_hz,
+        device=capture.device,
+        tail_s=0.1,
+    )
+    level = inspect_capture(recorded[:, 0])
+    print()
+    print(f"Input level    {level.summary()}")
+    if level.headroom_db < 6.0:
+        print("  TIGHT. Under 6 dB leaves nothing for a louder passage or a")
+        print("  warmer amplifier. Back the interface input gain off before")
+        print("  measuring anything you intend to keep.")
+    elif level.headroom_db > 30.0:
+        print("  LOW. Over 30 dB of headroom throws away converter range,")
+        print("  which shows up as a higher noise floor and therefore a")
+        print("  coarser repeatability floor. Raise the interface input gain.")
 
 
 def _passband_tones(config) -> tuple[float, ...]:

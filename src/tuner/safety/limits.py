@@ -84,20 +84,103 @@ def ramp_levels_dbfs(target_dbfs: float, steps: int = 4) -> list[float]:
     return list(np.linspace(START_LEVEL_DBFS, target_dbfs, steps + 1))
 
 
+@dataclass(frozen=True)
+class CaptureLevel:
+    """How hard a capture is driving the converter.
+
+    The peak alone says whether it clipped. It does not say whether that was
+    one stray sample or a chain running 10 dB too hot, and those want
+    different responses from the operator -- so the count comes with it.
+    """
+
+    peak_dbfs: float
+    headroom_db: float
+    samples_at_ceiling: int
+    n_samples: int
+
+    @property
+    def clipped(self) -> bool:
+        return self.samples_at_ceiling > 0
+
+    @property
+    def fraction_at_ceiling(self) -> float:
+        return self.samples_at_ceiling / self.n_samples if self.n_samples else 0.0
+
+    def summary(self) -> str:
+        if not self.n_samples:
+            return "empty capture"
+        return (
+            f"peak {self.peak_dbfs:+.2f} dBFS, {self.headroom_db:.1f} dB of "
+            f"headroom, {self.samples_at_ceiling} of {self.n_samples} samples "
+            f"at full scale ({self.fraction_at_ceiling * 100:.2f}%)"
+        )
+
+
+def inspect_capture(capture: np.ndarray) -> CaptureLevel:
+    """Measure how close a capture ran to full scale.
+
+    Public because setting input gain is otherwise guesswork: an operator who
+    can see "peaked at -18 dBFS" knows there is 18 dB to give away, and one
+    who can see "-0.2 dBFS" knows the next sweep may not survive. Guessing it
+    costs a retry per sweep, and in a car a retry costs a seat position.
+    """
+    flat = np.asarray(capture, dtype=np.float64).ravel()
+    if not flat.size:
+        return CaptureLevel(-np.inf, np.inf, 0, 0)
+    peak = float(np.max(np.abs(flat)))
+    peak_dbfs = 20.0 * np.log10(peak) if peak > 0 else -np.inf
+    return CaptureLevel(
+        peak_dbfs=peak_dbfs,
+        headroom_db=-peak_dbfs,
+        samples_at_ceiling=int(np.count_nonzero(np.abs(flat) >= CLIP_THRESHOLD)),
+        n_samples=int(flat.size),
+    )
+
+
 def assert_capture_sane(capture: np.ndarray, channel: int | None = None) -> None:
     """Raise if a captured buffer shows clipping or DC offset.
 
     Both conditions mean the signal chain differs from what the caller assumes.
+
+    The clipping message names **how much** and **how often**, because those
+    lead to different actions and the bare peak led to neither. A handful of
+    samples at full scale is a transient -- a connector nudged, a door shut --
+    and the sweep is worth simply repeating. A percent of the capture at full
+    scale is a chain running hot, and repeating it will fail again.
+
+    It also names the knob. For a clipped *capture* that is the interface's
+    input gain: the stimulus level is already ours and already limited, and
+    lowering it instead would buy headroom by throwing away signal-to-noise.
     """
     where = f" on channel {channel}" if channel is not None else ""
+    level = inspect_capture(capture)
 
-    peak = float(np.max(np.abs(capture))) if capture.size else 0.0
-    if peak >= CLIP_THRESHOLD:
-        raise SafetyViolation(f"clipping detected{where} (peak {peak:.4f})")
+    if level.clipped:
+        if level.samples_at_ceiling <= 4:
+            character = (
+                "a handful of samples, so this reads as a transient rather "
+                "than a chain running hot -- repeating the sweep may be enough"
+            )
+        else:
+            character = (
+                "sustained, so the chain is running hot and repeating the "
+                "sweep will fail the same way"
+            )
+        raise SafetyViolation(
+            f"clipping detected{where}: {level.summary()}. That is "
+            f"{character}. The knob for a clipped capture is the interface's "
+            f"input gain -- lowering the stimulus instead would buy headroom "
+            f"by giving away signal-to-noise."
+        )
 
     offset = float(np.mean(capture)) if capture.size else 0.0
     if abs(offset) > DC_OFFSET_LIMIT:
-        raise SafetyViolation(f"DC offset detected{where} ({offset:+.4f})")
+        raise SafetyViolation(
+            f"DC offset detected{where} ({offset:+.4f}, limit "
+            f"{DC_OFFSET_LIMIT}). A capture with DC in it is not the signal "
+            f"the deconvolution assumes; suspect a coupling capacitor, a "
+            f"phantom-power mismatch, or an input set to the wrong type."
+        )
 
 
 def apply(samples: np.ndarray, level_dbfs: float, limit: ChannelLimit) -> np.ndarray:
