@@ -1,0 +1,61 @@
+{"after": "b0041c0243000000", "before": "1f00580234000000", "data_id": 0, "output": 0, "reason": "electrical loop perturbation", "session_id": "bench", "timestamp": 1786583469.6975157}
+{"after": "1f00580234000000", "before": "b0041c0243000000", "data_id": 0, "output": 0, "reason": "loop teardown", "session_id": "bench", "timestamp": 1786583471.1515882}
+{"after": "b0041c0243000000", "before": "1f00580234000000", "data_id": 0, "output": 0, "reason": "electrical loop perturbation", "session_id": "bench", "timestamp": 1786583667.6213524}
+{"after": "0101db0190000001", "before": "0101f40190000001", "data_id": 31, "output": 0, "reason": "gain/delay", "session_id": "bench", "timestamp": 1786583727.8797662}
+{"after": "ed12440235000000", "before": "b0041c0243000000", "data_id": 0, "output": 0, "reason": "peq band 0", "session_id": "bench", "timestamp": 1786583728.228522}
+{"after": "1f003e02ab000000", "before": "4100580234000000", "data_id": 1, "output": 0, "reason": "peq band 1", "session_id": "bench", "timestamp": 1786583728.5584197}
+{"after": "27002602c3000000", "before": "e601580219000000", "data_id": 2, "output": 0, "reason": "peq band 2", "session_id": "bench", "timestamp": 1786583728.9220524}
+{"after": "5f2d1e02ae000000", "before": "d209e0012a000000", "data_id": 3, "output": 0, "reason": "peq band 3", "session_id": "bench", "timestamp": 1786583729.3357394}
+{"after": "f8077002c7000000", "before": "ab21580218000000", "data_id": 4, "output": 0, "reason": "peq band 4", "session_id": "bench", "timestamp": 1786583729.6569996}
+{"after": "4d0e6d024b000000", "before": "9f09580218000000", "data_id": 5, "output": 0, "reason": "peq band 5", "session_id": "bench", "timestamp": 1786583730.0045352}
+{"after": "6f007102c8000000", "before": "b004580257000000", "data_id": 6, "output": 0, "reason": "peq band 6", "session_id": "bench", "timestamp": 1786583730.3769622}
+{"after": "bb00120227000000", "before": "a00f580234000000", "data_id": 7, "output": 0, "reason": "peq band 7", "session_id": "bench", "timestamp": 1786583730.7432764}
+{"after": "db09fa0135000000", "before": "401f580234000000", "data_id": 8, "output": 0, "reason": "peq band 8", "session_id": "bench", "timestamp": 1786583731.0582092}
+{"after": "9d0d5202cb000000", "before": "803e580234000000", "data_id": 9, "output": 0, "reason": "peq band 9", "session_id": "bench", "timestamp": 1786583731.3806825}
+{"after": "1f00580234000000", "before": "b0041c0243000000", "data_id": 0, "output": 0, "reason": "loop teardown", "session_id": "bench", "timestamp": 1786583773.9091535}
+{"after": "b0041c0243000000", "before": "1f00580234000000", "data_id": 0, "output": 0, "reason": "electrical loop perturbation", "session_id": "bench", "timestamp": 1786584155.3165796}
+{"after": "0101db0190000001", "before": "0101f40190000001", "data_id": 31, "output": 0, "reason": "gain/delay", "session_id": "bench", "timestamp": 1786584213.998055}
+{"after": "3205680231000000", "before": "b0041c0243000000", "data_id": 0, "output": 0, "reason": "peq band 0", "session_id": "bench", "timestamp": 1786584214.3729243}
+{"after": "4b000c0228000000", "before": "4100580234000000", "data_id": 1, "output": 0, "reason": "peq band 1", "session_id": "bench", "timestamp": 1786584214.6940987}
+{"after": "38001502a0000000", "before": "e601580219000000", "data_id": 2, "output": 0, "reason": "peq band 2", "session_id": "bench", "timestamp": 1786584215.1128023}
+{"after": "9d01640293000000", "before": "d209e0012a000000", "data_id": 3, "output": 0, "reason": "peq band 3", "session_id": "bench", "timestamp": 1786584215.3928258}
+{"after": "be09000231000000", "before": "ab21580218000000", "data_id": 4, "output": 0, "reason": "peq band 4", "session_id": "bench", "timestamp": 1786584215.731545}
+{"after": "6200210295000000", "before": "9f09580218000000", "data_id": 5, "output": 0, "reason": "peq band 5", "session_id": "bench", "timestamp": 1786584216.0527442}
+{"after": "b8004402c9000000", "before": "b004580257000000", "data_id": 6, "output": 0, "reason": "peq band 6", "session_id": "bench", "timestamp": 1786584216.3952951}
+{"after": "2308690212000000", "before": "a00f580234000000", "data_id": 7, "output": 0, "reason": "peq band 7", "session_id": "bench", "timestamp": 1786584216.7228117}
+{"after": "b0041c0243000000", "before": "1f00580234000000", "data_id": 0, "output": 0, "reason": "electrical loop perturbation", "session_id": "bench", "timestamp": 1786585194.4667716}
+{"after": "0101db0190000001", "before": "0101f40190000001", "data_id": 31, "output": 0, "reason": "gain/delay", "session_id": "bench", "timestamp": 1786585257.6846604}
+{"after": "15001e028c000000", "before": "b0041c0243000000", "data_id": 0, "output": 0, "reason": "peq band 0", "session_id": "bench", "timestamp": 1786585258.011954}
+{"after": "d209e1012c000000", "before": "4100580234000000", "data_id": 1, "output": 0, "reason": "peq band 1", "session_id": "bench", "timestamp": 1786585258.38058}
+{"after": "140028027d000000", "before": "e601580219000000", "data_id": 2, "output": 0, "reason": "peq band 2", "session_id": "bench", "timestamp": 1786585258.7743685}
+{"after": "1400260296000000", "before": "d209e0012a000000", "data_id": 3, "output": 0, "reason": "peq band 3", "session_id": "bench", "timestamp": 1786585259.1268592}
+{"after": "5007480284000000", "before": "ab21580218000000", "data_id": 4, "output": 0, "reason": "peq band 4", "session_id": "bench", "timestamp": 1786585259.4193628}
+{"after": "610b7602fa000000", "before": "9f09580218000000", "data_id": 5, "output": 0, "reason": "peq band 5", "session_id": "bench", "timestamp": 1786585259.775553}
+{"after": "510769023b000000", "before": "b004580257000000", "data_id": 6, "output": 0, "reason": "peq band 6", "session_id": "bench", "timestamp": 1786585260.0954988}
+{"after": "204e2a0256000000", "before": "a00f580234000000", "data_id": 7, "output": 0, "reason": "peq band 7", "session_id": "bench", "timestamp": 1786585260.4405136}
+{"after": "6b006e02f8000000", "before": "401f580234000000", "data_id": 8, "output": 0, "reason": "peq band 8", "session_id": "bench", "timestamp": 1786585260.8005145}
+{"after": "14002d0295000000", "before": "803e580234000000", "data_id": 9, "output": 0, "reason": "peq band 9", "session_id": "bench", "timestamp": 1786585261.0917473}
+{"after": "1f00580234000000", "before": "b0041c0243000000", "data_id": 0, "output": 0, "reason": "loop teardown", "session_id": "bench", "timestamp": 1786585303.7839792}
+{"after": "b0041c0243000000", "before": "1f00580234000000", "data_id": 0, "output": 0, "reason": "electrical loop perturbation", "session_id": "bench", "timestamp": 1786586332.5901449}
+{"after": "0101db0190000001", "before": "0101f40190000001", "data_id": 31, "output": 0, "reason": "gain/delay", "session_id": "bench", "timestamp": 1786586395.4001722}
+{"after": "44005b028c000000", "before": "b0041c0243000000", "data_id": 0, "output": 0, "reason": "peq band 0", "session_id": "bench", "timestamp": 1786586395.7375193}
+{"after": "7914610269000000", "before": "4100580234000000", "data_id": 1, "output": 0, "reason": "peq band 1", "session_id": "bench", "timestamp": 1786586396.0861948}
+{"after": "4009120223000000", "before": "e601580219000000", "data_id": 2, "output": 0, "reason": "peq band 2", "session_id": "bench", "timestamp": 1786586396.3811743}
+{"after": "1f00fe0160000000", "before": "d209e0012a000000", "data_id": 3, "output": 0, "reason": "peq band 3", "session_id": "bench", "timestamp": 1786586396.822376}
+{"after": "4e1367023c000000", "before": "ab21580218000000", "data_id": 4, "output": 0, "reason": "peq band 4", "session_id": "bench", "timestamp": 1786586397.1924238}
+{"after": "d10a6b02c3000000", "before": "9f09580218000000", "data_id": 5, "output": 0, "reason": "peq band 5", "session_id": "bench", "timestamp": 1786586397.484896}
+{"after": "cc0a230225000000", "before": "b004580257000000", "data_id": 6, "output": 0, "reason": "peq band 6", "session_id": "bench", "timestamp": 1786586397.9673486}
+{"after": "f7015f026a000000", "before": "a00f580234000000", "data_id": 7, "output": 0, "reason": "peq band 7", "session_id": "bench", "timestamp": 1786586398.3098917}
+{"after": "a6004a0220000000", "before": "401f580234000000", "data_id": 8, "output": 0, "reason": "peq band 8", "session_id": "bench", "timestamp": 1786586398.6285532}
+{"after": "e3004b0297000000", "before": "803e580234000000", "data_id": 9, "output": 0, "reason": "peq band 9", "session_id": "bench", "timestamp": 1786586398.9248762}
+{"after": "1f00580234000000", "before": "44005b028c000000", "data_id": 0, "output": 0, "reason": "loop teardown", "session_id": "bench", "timestamp": 1786586417.2792003}
+{"after": "4100580234000000", "before": "7914610269000000", "data_id": 1, "output": 0, "reason": "loop teardown", "session_id": "bench", "timestamp": 1786586417.580363}
+{"after": "e601580219000000", "before": "4009120223000000", "data_id": 2, "output": 0, "reason": "loop teardown", "session_id": "bench", "timestamp": 1786586417.9178507}
+{"after": "d209e0012a000000", "before": "1f00fe0160000000", "data_id": 3, "output": 0, "reason": "loop teardown", "session_id": "bench", "timestamp": 1786586418.2691338}
+{"after": "ab21580218000000", "before": "4e1367023c000000", "data_id": 4, "output": 0, "reason": "loop teardown", "session_id": "bench", "timestamp": 1786586418.6228244}
+{"after": "9f09580218000000", "before": "d10a6b02c3000000", "data_id": 5, "output": 0, "reason": "loop teardown", "session_id": "bench", "timestamp": 1786586418.9453623}
+{"after": "b004580257000000", "before": "cc0a230225000000", "data_id": 6, "output": 0, "reason": "loop teardown", "session_id": "bench", "timestamp": 1786586419.2766323}
+{"after": "a00f580234000000", "before": "f7015f026a000000", "data_id": 7, "output": 0, "reason": "loop teardown", "session_id": "bench", "timestamp": 1786586419.6540015}
+{"after": "401f580234000000", "before": "a6004a0220000000", "data_id": 8, "output": 0, "reason": "loop teardown", "session_id": "bench", "timestamp": 1786586419.9802966}
+{"after": "803e580234000000", "before": "e3004b0297000000", "data_id": 9, "output": 0, "reason": "loop teardown", "session_id": "bench", "timestamp": 1786586420.2640395}
+{"after": "0101f40190000001", "before": "0101db0190000001", "data_id": 31, "output": 0, "reason": "loop teardown", "session_id": "bench", "timestamp": 1786586420.7552426}

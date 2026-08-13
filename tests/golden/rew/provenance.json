@@ -1,0 +1,30 @@
+{
+  "dut": {
+    "output": "OUT1",
+    "highpass_hz": 20,
+    "lowpass_hz": 3500,
+    "eq_band": "app band 2 (eq[1])",
+    "eq_freq_hz": 1000,
+    "eq_gain_db": -12.0,
+    "eq_bw_raw": 65,
+    "eq_q": 2.041,
+    "other_bands": "flat, level_raw 600"
+  },
+  "device": "in=Microphone (Scarlett Solo USB) | out=Speakers (Scarlett Solo USB)",
+  "host_api": "Windows WASAPI",
+  "sample_rate_hz": 44100,
+  "timestamp": "2026-08-09T22:05:15.991524",
+  "level_dbfs": -12.0,
+  "repeats": 5,
+  "points": 600,
+  "compare_band_hz": [
+    30.0,
+    3500.0
+  ],
+  "notes": {
+    "rew_version": "5.31.3",
+    "rew_input_volume": "1.000",
+    "host_api_switch": "WASAPI adopted 2026-08-09; known-answer vs MME 0.236 dB max",
+    "purpose": "REW golden: independent ground truth for the engine"
+  }
+}

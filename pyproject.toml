@@ -1,0 +1,57 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dsp408-tuner"
+version = "0.1.0"
+description = "Automated acoustic tuning for the Dayton Audio DSP-408"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.10",
+    # PortAudio wrapper; keeps the audio layer host-agnostic across
+    # Windows, Linux and macOS.
+    "sounddevice>=0.4.6",
+    "soundfile>=0.12",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4",
+    "pytest-cov>=4.1",
+    "ruff>=0.4",
+    "mypy>=1.8",
+]
+
+[project.scripts]
+tuner = "tuner.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# The suite must pass with no audio hardware attached and no DSP connected.
+addopts = "-q --strict-markers"
+
+[tool.ruff]
+line-length = 88
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "SIM"]
+# N818 wants an "Error" suffix on exception names. SafetyViolation and
+# NoTimingReference read better at the call site and are named in CLAUDE.md
+# and the docs; renaming them for the convention would cost clarity where it
+# matters most.
+ignore = ["N818"]
+
+[tool.mypy]
+python_version = "3.10"
+packages = ["tuner"]
+warn_unused_ignores = true
+disallow_untyped_defs = false

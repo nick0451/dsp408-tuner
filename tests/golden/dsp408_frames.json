@@ -1,0 +1,497 @@
+{
+  "source": "captures/btsnoop_hci.log",
+  "captured": "2026-08-08, vendor Android app over classic Bluetooth RFCOMM",
+  "note": "Real frames from real hardware. The whole capture -- 5834 frames -- re-encodes byte-identically through tuner.dsp.protocol; this file is a curated subset kept small enough to live in the test suite.",
+  "frames": [
+    {
+      "hex": "80 80 80 ee a1 01 00 04 00 1f 04 00 08 00 01 01 ea 01 90 00 00 01 cd aa",
+      "from_device": false,
+      "offset_s": 1769.99,
+      "frame_type": 161,
+      "data_type": 4,
+      "channel_id": 0,
+      "data_id": 31,
+      "note": "channel gain, slider drag"
+    },
+    {
+      "hex": "80 80 80 ee a1 01 00 04 00 1f 04 00 08 00 01 01 e0 01 90 00 00 01 c7 aa",
+      "from_device": false,
+      "offset_s": 1770.89,
+      "frame_type": 161,
+      "data_type": 4,
+      "channel_id": 0,
+      "data_id": 31,
+      "note": "channel gain 480 = -12.0 dB"
+    },
+    {
+      "hex": "80 80 80 ee a1 01 00 04 00 1f 04 00 08 00 01 01 ea 01 90 00 00 01 cd aa",
+      "from_device": false,
+      "offset_s": 1774.51,
+      "frame_type": 161,
+      "data_type": 4,
+      "channel_id": 0,
+      "data_id": 31,
+      "note": "parameter write"
+    },
+    {
+      "hex": "80 80 80 ee a1 01 00 04 00 1f 04 00 08 00 01 01 f4 01 90 00 00 01 d3 aa",
+      "from_device": false,
+      "offset_s": 1775.39,
+      "frame_type": 161,
+      "data_type": 4,
+      "channel_id": 0,
+      "data_id": 31,
+      "note": "channel gain 500 = -10.0 dB"
+    },
+    {
+      "hex": "80 80 80 ee a1 01 00 04 00 1f 04 00 08 00 01 01 fe 01 90 00 00 01 d9 aa",
+      "from_device": false,
+      "offset_s": 1776.47,
+      "frame_type": 161,
+      "data_type": 4,
+      "channel_id": 0,
+      "data_id": 31,
+      "note": "parameter write"
+    },
+    {
+      "hex": "80 80 80 ee a1 01 00 04 00 1f 04 00 08 00 01 01 08 02 90 00 00 01 2c aa",
+      "from_device": false,
+      "offset_s": 1777.04,
+      "frame_type": 161,
+      "data_type": 4,
+      "channel_id": 0,
+      "data_id": 31,
+      "note": "channel gain 520 = -8.0 dB"
+    },
+    {
+      "hex": "80 80 80 ee a1 01 00 04 00 1f 04 00 08 00 01 01 fe 01 90 00 00 01 d9 aa",
+      "from_device": false,
+      "offset_s": 1781.48,
+      "frame_type": 161,
+      "data_type": 4,
+      "channel_id": 0,
+      "data_id": 31,
+      "note": "parameter write"
+    },
+    {
+      "hex": "80 80 80 ee a1 01 00 04 00 1f 04 00 08 00 01 01 f4 01 90 00 00 01 d3 aa",
+      "from_device": false,
+      "offset_s": 1781.96,
+      "frame_type": 161,
+      "data_type": 4,
+      "channel_id": 0,
+      "data_id": 31,
+      "note": "channel gain back to 500"
+    },
+    {
+      "hex": "80 80 80 ee a1 01 00 04 00 20 04 00 08 00 c2 01 00 01 d2 04 00 01 9d aa",
+      "from_device": false,
+      "offset_s": 1865.15,
+      "frame_type": 161,
+      "data_type": 4,
+      "channel_id": 0,
+      "data_id": 32,
+      "note": "low-pass set to 1234 Hz, off any table"
+    },
+    {
+      "hex": "80 80 80 ee a1 01 00 04 00 03 04 00 08 00 d2 09 e0 01 00 00 00 00 91 aa",
+      "from_device": false,
+      "offset_s": 1912.26,
+      "frame_type": 161,
+      "data_type": 4,
+      "channel_id": 0,
+      "data_id": 3,
+      "note": "parameter write"
+    },
+    {
+      "hex": "80 80 80 ee a1 01 00 04 00 03 04 00 08 00 d2 09 e0 01 31 00 00 00 a0 aa",
+      "from_device": false,
+      "offset_s": 1912.52,
+      "frame_type": 161,
+      "data_type": 4,
+      "channel_id": 0,
+      "data_id": 3,
+      "note": "parameter write"
+    },
+    {
+      "hex": "80 80 80 ee a1 01 00 04 00 03 04 00 08 00 d2 09 e0 01 6c 00 00 00 fd aa",
+      "from_device": false,
+      "offset_s": 1912.78,
+      "frame_type": 161,
+      "data_type": 4,
+      "channel_id": 0,
+      "data_id": 3,
+      "note": "parameter write"
+    },
+    {
+      "hex": "80 80 80 ee a1 01 00 04 00 03 04 00 08 00 d2 09 e0 01 6e 00 00 00 ff aa",
+      "from_device": false,
+      "offset_s": 1913.07,
+      "frame_type": 161,
+      "data_type": 4,
+      "channel_id": 0,
+      "data_id": 3,
+      "note": "parameter write"
+    },
+    {
+      "hex": "80 80 80 ee a1 01 00 04 00 03 04 00 08 00 d2 09 58 02 6e 00 00 00 44 aa",
+      "from_device": false,
+      "offset_s": 1919.93,
+      "frame_type": 161,
+      "data_type": 4,
+      "channel_id": 0,
+      "data_id": 3,
+      "note": "EQ band 3 level to 600 = 0.0 dB"
+    },
+    {
+      "hex": "80 80 80 ee a1 01 00 04 00 02 04 00 08 00 e6 01 58 02 00 00 00 00 17 aa",
+      "from_device": false,
+      "offset_s": 1948.73,
+      "frame_type": 161,
+      "data_type": 4,
+      "channel_id": 0,
+      "data_id": 2,
+      "note": "parameter write"
+    },
+    {
+      "hex": "80 80 80 ee a1 01 00 04 00 02 04 00 08 00 e6 01 58 02 4f 00 00 00 58 aa",
+      "from_device": false,
+      "offset_s": 1949.0,
+      "frame_type": 161,
+      "data_type": 4,
+      "channel_id": 0,
+      "data_id": 2,
+      "note": "parameter write"
+    },
+    {
+      "hex": "80 80 80 ee a1 01 00 04 00 02 04 00 08 00 e6 01 58 02 6a 00 00 00 7d aa",
+      "from_device": false,
+      "offset_s": 1949.31,
+      "frame_type": 161,
+      "data_type": 4,
+      "channel_id": 0,
+      "data_id": 2,
+      "note": "parameter write"
+    },
+    {
+      "hex": "80 80 80 ee a1 01 00 04 00 02 04 00 08 00 e6 01 91 02 6a 00 00 00 b4 aa",
+      "from_device": false,
+      "offset_s": 1961.8,
+      "frame_type": 161,
+      "data_type": 4,
+      "channel_id": 0,
+      "data_id": 2,
+      "note": "parameter write"
+    },
+    {
+      "hex": "80 80 80 ee a1 01 00 04 00 02 04 00 08 00 e6 01 b1 02 6a 00 00 00 94 aa",
+      "from_device": false,
+      "offset_s": 1962.15,
+      "frame_type": 161,
+      "data_type": 4,
+      "channel_id": 0,
+      "data_id": 2,
+      "note": "EQ band 2 level to 689 = +8.9 dB"
+    },
+    {
+      "hex": "80 80 80 ee a1 01 00 04 00 02 04 00 08 00 c5 08 b1 02 6a 00 00 00 be aa",
+      "from_device": false,
+      "offset_s": 1975.34,
+      "frame_type": 161,
+      "data_type": 4,
+      "channel_id": 0,
+      "data_id": 2,
+      "note": "parameter write"
+    },
+    {
+      "hex": "80 80 80 ee a1 01 00 04 00 02 04 00 08 00 9b 31 b1 02 6a 00 00 00 d9 aa",
+      "from_device": false,
+      "offset_s": 1975.61,
+      "frame_type": 161,
+      "data_type": 4,
+      "channel_id": 0,
+      "data_id": 2,
+      "note": "EQ band 2 centre to 12699 Hz"
+    },
+    {
+      "hex": "80 80 80 ee a2 01 00 09 04 00 04 00 00 00 aa aa",
+      "from_device": false,
+      "offset_s": 1701.51,
+      "frame_type": 162,
+      "data_type": 9,
+      "channel_id": 4,
+      "data_id": 0,
+      "note": "poll/read request"
+    },
+    {
+      "hex": "80 80 80 ee a2 01 00 09 13 00 04 00 00 00 bd aa",
+      "from_device": false,
+      "offset_s": 1701.64,
+      "frame_type": 162,
+      "data_type": 9,
+      "channel_id": 19,
+      "data_id": 0,
+      "note": "poll/read request"
+    },
+    {
+      "hex": "80 80 80 ee a2 01 00 09 02 00 04 00 00 00 ac aa",
+      "from_device": false,
+      "offset_s": 1701.78,
+      "frame_type": 162,
+      "data_type": 9,
+      "channel_id": 2,
+      "data_id": 0,
+      "note": "poll/read request"
+    },
+    {
+      "hex": "80 80 80 ee a2 01 00 09 05 00 04 00 00 00 ab aa",
+      "from_device": false,
+      "offset_s": 1701.88,
+      "frame_type": 162,
+      "data_type": 9,
+      "channel_id": 5,
+      "data_id": 0,
+      "note": "poll/read request"
+    },
+    {
+      "hex": "80 80 80 ee a2 01 00 09 06 00 04 00 00 00 a8 aa",
+      "from_device": false,
+      "offset_s": 1701.96,
+      "frame_type": 162,
+      "data_type": 9,
+      "channel_id": 6,
+      "data_id": 0,
+      "note": "poll/read request"
+    },
+    {
+      "hex": "80 80 80 ee a2 01 00 09 07 00 04 00 00 00 a9 aa",
+      "from_device": false,
+      "offset_s": 1702.03,
+      "frame_type": 162,
+      "data_type": 9,
+      "channel_id": 7,
+      "data_id": 0,
+      "note": "poll/read request"
+    },
+    {
+      "hex": "80 80 80 ee a2 01 00 09 08 00 04 00 00 00 a6 aa",
+      "from_device": false,
+      "offset_s": 1702.07,
+      "frame_type": 162,
+      "data_type": 9,
+      "channel_id": 8,
+      "data_id": 0,
+      "note": "poll/read request"
+    },
+    {
+      "hex": "80 80 80 ee a2 01 00 09 34 00 04 00 00 00 9a aa",
+      "from_device": false,
+      "offset_s": 1702.12,
+      "frame_type": 162,
+      "data_type": 9,
+      "channel_id": 52,
+      "data_id": 0,
+      "note": "poll/read request"
+    },
+    {
+      "hex": "80 80 80 ee a2 01 01 09 00 00 04 00 00 00 af aa",
+      "from_device": false,
+      "offset_s": 1702.41,
+      "frame_type": 162,
+      "data_type": 9,
+      "channel_id": 0,
+      "data_id": 0,
+      "note": "poll/read request"
+    },
+    {
+      "hex": "80 80 80 ee a2 01 02 09 00 00 04 00 00 00 ac aa",
+      "from_device": false,
+      "offset_s": 1702.64,
+      "frame_type": 162,
+      "data_type": 9,
+      "channel_id": 0,
+      "data_id": 0,
+      "note": "poll/read request"
+    },
+    {
+      "hex": "80 80 80 ee a2 01 03 09 00 00 04 00 00 00 ad aa",
+      "from_device": false,
+      "offset_s": 1702.83,
+      "frame_type": 162,
+      "data_type": 9,
+      "channel_id": 0,
+      "data_id": 0,
+      "note": "poll/read request"
+    },
+    {
+      "hex": "80 80 80 ee a2 01 04 09 00 00 04 00 00 00 aa aa",
+      "from_device": false,
+      "offset_s": 1702.94,
+      "frame_type": 162,
+      "data_type": 9,
+      "channel_id": 0,
+      "data_id": 0,
+      "note": "poll/read request"
+    },
+    {
+      "hex": "80 80 80 ee 51 01 00 04 00 1f 04 00 00 00 4f aa",
+      "from_device": true,
+      "offset_s": 1770.12,
+      "frame_type": 81,
+      "data_type": 4,
+      "channel_id": 0,
+      "data_id": 31,
+      "note": "device acknowledgement"
+    },
+    {
+      "hex": "80 80 80 ee 51 01 00 04 00 20 04 00 00 00 70 aa",
+      "from_device": true,
+      "offset_s": 1865.51,
+      "frame_type": 81,
+      "data_type": 4,
+      "channel_id": 0,
+      "data_id": 32,
+      "note": "device acknowledgement"
+    },
+    {
+      "hex": "80 80 80 ee 51 01 00 04 00 03 04 00 00 00 53 aa",
+      "from_device": true,
+      "offset_s": 1912.31,
+      "frame_type": 81,
+      "data_type": 4,
+      "channel_id": 0,
+      "data_id": 3,
+      "note": "device acknowledgement"
+    },
+    {
+      "hex": "80 80 80 ee 51 01 00 04 00 02 04 00 00 00 52 aa",
+      "from_device": true,
+      "offset_s": 1948.78,
+      "frame_type": 81,
+      "data_type": 4,
+      "channel_id": 0,
+      "data_id": 2,
+      "note": "device acknowledgement"
+    },
+    {
+      "hex": "80 80 80 ee 53 01 00 09 04 00 04 00 0b 00 4d 59 44 57 2d 41 56 31 2e 30 36 74 aa",
+      "from_device": true,
+      "offset_s": 1701.63,
+      "frame_type": 83,
+      "data_type": 9,
+      "channel_id": 4,
+      "data_id": 0,
+      "note": "device data response"
+    },
+    {
+      "hex": "80 80 80 ee 53 01 00 09 13 00 04 00 0a 00 83 83 83 83 d1 c7 bb bb bb bb 50 aa",
+      "from_device": true,
+      "offset_s": 1701.75,
+      "frame_type": 83,
+      "data_type": 9,
+      "channel_id": 19,
+      "data_id": 0,
+      "note": "device data response"
+    },
+    {
+      "hex": "80 80 80 ee 53 01 00 09 02 00 04 00 08 00 01 00 01 00 00 00 00 00 55 aa",
+      "from_device": true,
+      "offset_s": 1701.83,
+      "frame_type": 83,
+      "data_type": 9,
+      "channel_id": 2,
+      "data_id": 0,
+      "note": "device data response"
+    },
+    {
+      "hex": "80 80 80 ee 53 01 00 09 05 00 04 00 08 00 2e 00 00 32 00 32 01 00 7d aa",
+      "from_device": true,
+      "offset_s": 1701.93,
+      "frame_type": 83,
+      "data_type": 9,
+      "channel_id": 5,
+      "data_id": 0,
+      "note": "device data response"
+    },
+    {
+      "hex": "80 80 80 ee 53 01 00 09 06 00 04 00 08 00 03 09 04 0a 0f 12 16 17 49 aa",
+      "from_device": true,
+      "offset_s": 1702.0,
+      "frame_type": 83,
+      "data_type": 9,
+      "channel_id": 6,
+      "data_id": 0,
+      "note": "device data response"
+    },
+    {
+      "hex": "80 80 80 ee 53 01 00 09 07 00 04 00 00 00 58 aa",
+      "from_device": true,
+      "offset_s": 1702.06,
+      "frame_type": 83,
+      "data_type": 9,
+      "channel_id": 7,
+      "data_id": 0,
+      "note": "device data response"
+    },
+    {
+      "hex": "80 80 80 ee 53 01 00 09 08 00 04 00 00 00 57 aa",
+      "from_device": true,
+      "offset_s": 1702.11,
+      "frame_type": 83,
+      "data_type": 9,
+      "channel_id": 8,
+      "data_id": 0,
+      "note": "device data response"
+    },
+    {
+      "hex": "80 80 80 ee 53 01 00 09 34 00 04 00 01 00 04 6e aa",
+      "from_device": true,
+      "offset_s": 1702.39,
+      "frame_type": 83,
+      "data_type": 9,
+      "channel_id": 52,
+      "data_id": 0,
+      "note": "device data response"
+    },
+    {
+      "hex": "80 80 80 ee 53 01 01 09 00 00 04 00 0f 00 72 65 2d 74 69 6d 65 64 00 00 00 00 00 00 00 1a aa",
+      "from_device": true,
+      "offset_s": 1702.58,
+      "frame_type": 83,
+      "data_type": 9,
+      "channel_id": 0,
+      "data_id": 0,
+      "note": "device data response"
+    },
+    {
+      "hex": "80 80 80 ee 53 01 02 09 00 00 04 00 0f 00 72 6f 63 6b 6b 6b 6b 6b 6b 00 00 00 00 00 00 2c aa",
+      "from_device": true,
+      "offset_s": 1702.75,
+      "frame_type": 83,
+      "data_type": 9,
+      "channel_id": 0,
+      "data_id": 0,
+      "note": "device data response"
+    },
+    {
+      "hex": "80 80 80 ee 53 01 03 09 00 00 04 00 0f 00 2d 20 62 61 73 73 00 00 00 00 00 00 00 00 00 5d aa",
+      "from_device": true,
+      "offset_s": 1702.9,
+      "frame_type": 83,
+      "data_type": 9,
+      "channel_id": 0,
+      "data_id": 0,
+      "note": "device data response"
+    },
+    {
+      "hex": "80 80 80 ee 53 01 04 09 00 00 04 00 0f 00 6c 62 61 73 73 00 00 00 00 00 00 00 00 00 00 3b aa",
+      "from_device": true,
+      "offset_s": 1703.06,
+      "frame_type": 83,
+      "data_type": 9,
+      "channel_id": 0,
+      "data_id": 0,
+      "note": "device data response"
+    }
+  ]
+}

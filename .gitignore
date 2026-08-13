@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Raw measurement captures are large and reproducible; calibration curves
+# and REW golden reference data are committed.
+captures/*
+*.wav
+!tests/golden/*.wav
+
+# The HCI capture is the exception: it is small, it is NOT reproducible
+# without another vendor-app session on the operator's phone and car, and
+# several documented conclusions rest on it -- the transport being RFCOMM, the
+# whole-block write scope, and the golden frames in tests/golden/. Committed
+# deliberately as evidence.
+!captures/btsnoop_hci.log
+
+# Editor
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# KiCad's own Local History. Tool state, not project content -- and it is
+# itself a git repository, which makes it unstageable from here anyway.
+.history/
+
+# Reverse-engineering toolchain, not part of the project
+ghidra_*_PUBLIC/
+
+# Third-party KiCad MCP server, cloned not vendored. The board design itself
+# lives in hardware/ and IS committed.
+KiCAD-MCP-Server/

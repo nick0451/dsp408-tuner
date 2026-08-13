@@ -1,0 +1,2 @@
+{"after": "0100ea0190000001", "before": "0100f40190000001", "data_id": 31, "output": 0, "reason": "bring-up stage 5: gain 500->490", "session_id": "20260811T231713Z", "timestamp": 1786490235.3841257}
+{"after": "0100f40190000001", "before": "0100ea0190000001", "data_id": 31, "output": 0, "reason": "stage 5 rollback", "session_id": "20260811T231713Z", "timestamp": 1786490238.123009}

@@ -1,0 +1,4 @@
+(sym_lib_table
+  (version 7)
+  (lib (name "capsule-board")(type "KiCad")(uri "${KIPRJMOD}/lib/capsule-board.kicad_sym")(options "")(descr "Project-local symbols for the mic capsule board"))
+)

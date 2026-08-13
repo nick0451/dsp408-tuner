@@ -1,0 +1,22 @@
+{
+  "mcpServers": {
+    "kicad": {
+      "command": "node",
+      "args": [
+        "c:\\Users\\nick\\Documents\\Claude Project\\rdx tuning interface\\KiCAD-MCP-Server\\dist\\index.js"
+      ],
+      "env": {
+        "KICAD_PYTHON": "c:\\Users\\nick\\Documents\\Claude Project\\rdx tuning interface\\KiCAD-MCP-Server\\.venv\\Scripts\\python.exe",
+        "PATH": "C:\\Program Files\\KiCad\\10.0\\bin;${PATH}",
+        "NODE_ENV": "production",
+        "LOG_LEVEL": "info",
+        "KICAD_AUTO_LAUNCH": "false",
+        "KICAD_INTERACTIVE_SCHEMATIC": "false"
+      }
+    },
+    "logic2": {
+      "type": "http",
+      "url": "http://127.0.0.1:10530"
+    }
+  }
+}

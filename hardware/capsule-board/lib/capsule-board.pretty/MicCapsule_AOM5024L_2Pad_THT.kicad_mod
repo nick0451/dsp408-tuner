@@ -1,0 +1,59 @@
+(footprint "MicCapsule_AOM5024L_2Pad_THT"
+  (version 20241229)
+  (generator "kicad-mcp")
+  (generator_version "9.0")
+  (layer "F.Cu")
+  (descr "Two plated holes for the flying leads of a PUI AOM-5024L-HD-R electret capsule (body 9.7mm dia x 5mm, terminals on rear face). Pad 1 = (-) case/ground, pad 2 = (+) FET drain / output.")
+  (tags "microphone electret capsule AOM-5024L wire pad")
+
+  (property "Reference" "REF**" (at 0 -2.2 0)
+    (layer "F.SilkS")
+    (uuid "68c3d4cd-e145-4a8b-be08-ffa709b4525e")
+    (effects (font (size 1 1) (thickness 0.15)))
+  )
+  (property "Value" "MicCapsule_AOM5024L_2Pad_THT" (at 0 2.2 0)
+    (layer "F.Fab")
+    (uuid "e8f12ef7-c71b-42fe-8b3f-0d07e9e5b08b")
+    (effects (font (size 1 1) (thickness 0.15)))
+  )
+  (property "Datasheet" "" (at 0 0 0)
+    (layer "F.Fab")
+    (uuid "d30acccf-c97c-4967-b4e4-580a6b6207bf")
+    (effects (font (size 1 1) (thickness 0.15)))
+  )
+
+  (fp_rect
+    (start -2.4 -1.3)
+    (end 2.4 1.3)
+    (stroke (width 0.05) (type default))
+    (fill none)
+    (layer "F.CrtYd")
+    (uuid "dd30a2e5-f328-41b6-92b1-b5c3b9dde9f0")
+  )
+
+  (fp_rect
+    (start -2.3 -1.2)
+    (end 2.3 1.2)
+    (stroke (width 0.12) (type default))
+    (fill none)
+    (layer "F.SilkS")
+    (uuid "a4f16772-372e-4967-ac62-5dbf606e8b90")
+  )
+
+  (pad "1" thru_hole circle
+    (at -1.27 0)
+    (size 1.6 1.6)
+    (drill 0.9)
+    (layers "*.Cu" "*.Mask")
+    (uuid "e743c2ae-9588-4904-8487-df80d84e353c")
+  )
+
+  (pad "2" thru_hole circle
+    (at 1.27 0)
+    (size 1.6 1.6)
+    (drill 0.9)
+    (layers "*.Cu" "*.Mask")
+    (uuid "f90eb935-6c82-41df-afec-d9472d119516")
+  )
+
+)

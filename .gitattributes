@@ -1,0 +1,33 @@
+# Normalise text to LF in the repository, check out native. The project is
+# developed on Windows and deploys to a Raspberry Pi, so both line endings are
+# in play and neither should show up as a diff.
+* text=auto eol=lf
+
+# --- Binary. These MUST NOT be line-ending normalised. -----------------------
+#
+# The btsnoop capture is the load-bearing one: it is a binary Bluetooth HCI
+# log, several documented conclusions rest on it, and the golden frame tests
+# compare against it byte for byte. Normalising 0x0d 0x0a inside it would
+# corrupt the evidence silently -- the file would still parse, and the frames
+# it yielded would be wrong.
+captures/*.log     binary
+*.DDP              binary
+*.ddp              binary
+
+*.png              binary
+*.jpg              binary
+*.jpeg             binary
+*.pdf              binary
+*.wav              binary
+*.step             binary
+*.stp              binary
+
+# --- Diff behaviour ----------------------------------------------------------
+# KiCad files are text and worth diffing, but they are machine-written and
+# noisy; keep them out of language statistics.
+*.kicad_pcb        linguist-generated
+*.kicad_sch        linguist-generated
+*.kicad_pro        linguist-generated
+
+# REW exports and golden fixtures are data, not source.
+tests/golden/**    linguist-vendored

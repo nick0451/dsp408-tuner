@@ -1,0 +1,44 @@
+{"after": "0100ea0190000001", "before": "0100f40190000001", "data_id": 31, "output": 0, "reason": "gain/delay", "session_id": "20260812T035827Z", "timestamp": 1786507112.6322303}
+{"after": "6e0a56022a000000", "before": "1f00580234000000", "data_id": 0, "output": 0, "reason": "peq band 0", "session_id": "20260812T035827Z", "timestamp": 1786507112.9709322}
+{"after": "6e0a58022a000000", "before": "6e0a56022a000000", "data_id": 3, "output": 0, "reason": "flatten band 3", "session_id": "20260812T035827Z", "timestamp": 1786507113.3008435}
+{"after": "1f00580234000000", "before": "6e0a56022a000000", "data_id": 0, "output": 0, "reason": "6A back", "session_id": "20260812T035827Z", "timestamp": 1786507116.1332645}
+{"after": "6e0a56022a000000", "before": "6e0a58022a000000", "data_id": 3, "output": 0, "reason": "6A back", "session_id": "20260812T035827Z", "timestamp": 1786507116.4632664}
+{"after": "0100f40190000001", "before": "0100ea0190000001", "data_id": 31, "output": 0, "reason": "6A back", "session_id": "20260812T035827Z", "timestamp": 1786507116.810751}
+{"after": "0100ea0190000001", "before": "0100f40190000001", "data_id": 31, "output": 0, "reason": "gain/delay", "session_id": "20260812T035827Z", "timestamp": 1786507117.882016}
+{"after": "6e0a56022a000000", "before": "1f00580234000000", "data_id": 0, "output": 0, "reason": "peq band 0", "session_id": "20260812T035827Z", "timestamp": 1786507118.248268}
+{"after": "6e0a58022a000000", "before": "6e0a56022a000000", "data_id": 3, "output": 0, "reason": "flatten band 3", "session_id": "20260812T035827Z", "timestamp": 1786507118.6282105}
+{"after": "0100ae019c000002", "before": "0100b8019c000002", "data_id": 31, "output": 1, "reason": "gain/delay", "session_id": "20260812T035827Z", "timestamp": 1786507119.410711}
+{"after": "4c0976022c000000", "before": "1f00580234000000", "data_id": 0, "output": 1, "reason": "peq band 0", "session_id": "20260812T035827Z", "timestamp": 1786507119.7481666}
+{"after": "480c260223000000", "before": "9001580221000000", "data_id": 1, "output": 1, "reason": "peq band 1", "session_id": "20260812T035827Z", "timestamp": 1786507120.089469}
+{"after": "401f1b0243000000", "before": "2e02580219000000", "data_id": 2, "output": 1, "reason": "peq band 2", "session_id": "20260812T035827Z", "timestamp": 1786507120.4630866}
+{"after": "4c0958022b000000", "before": "4c0976022b000000", "data_id": 4, "output": 1, "reason": "flatten band 4", "session_id": "20260812T035827Z", "timestamp": 1786507120.7956421}
+{"after": "480c580223000000", "before": "480c260223000000", "data_id": 5, "output": 1, "reason": "flatten band 5", "session_id": "20260812T035827Z", "timestamp": 1786507121.2292528}
+{"after": "401f580243000000", "before": "401f1b0243000000", "data_id": 6, "output": 1, "reason": "flatten band 6", "session_id": "20260812T035827Z", "timestamp": 1786507121.5592673}
+{"after": "0100d60100000003", "before": "0100e00100000003", "data_id": 31, "output": 2, "reason": "gain/delay", "session_id": "20260812T035827Z", "timestamp": 1786507122.3668268}
+{"after": "6f09fe0118000000", "before": "1f00580234000000", "data_id": 0, "output": 2, "reason": "peq band 0", "session_id": "20260812T035827Z", "timestamp": 1786507122.6818683}
+{"after": "21111c0218000000", "before": "6f09fe0118000000", "data_id": 1, "output": 2, "reason": "peq band 1", "session_id": "20260812T035827Z", "timestamp": 1786507123.0442424}
+{"after": "2c14300219000000", "before": "21111c0218000000", "data_id": 2, "output": 2, "reason": "peq band 2", "session_id": "20260812T035827Z", "timestamp": 1786507123.405512}
+{"after": "ae19130218000000", "before": "2c14300219000000", "data_id": 3, "output": 2, "reason": "peq band 3", "session_id": "20260812T035827Z", "timestamp": 1786507123.8967807}
+{"after": "ae19580218000000", "before": "ae19130218000000", "data_id": 4, "output": 2, "reason": "flatten band 4", "session_id": "20260812T035827Z", "timestamp": 1786507124.307984}
+{"after": "1f00580234000000", "before": "6e0a56022a000000", "data_id": 0, "output": 0, "reason": "6B back", "session_id": "20260812T035827Z", "timestamp": 1786507127.1240814}
+{"after": "6e0a56022a000000", "before": "6e0a58022a000000", "data_id": 3, "output": 0, "reason": "6B back", "session_id": "20260812T035827Z", "timestamp": 1786507127.4578474}
+{"after": "0100f40190000001", "before": "0100ea0190000001", "data_id": 31, "output": 0, "reason": "6B back", "session_id": "20260812T035827Z", "timestamp": 1786507127.8503187}
+{"after": "1f00580234000000", "before": "4c0976022c000000", "data_id": 0, "output": 1, "reason": "6B back", "session_id": "20260812T035827Z", "timestamp": 1786507128.916534}
+{"after": "9001580221000000", "before": "480c260223000000", "data_id": 1, "output": 1, "reason": "6B back", "session_id": "20260812T035827Z", "timestamp": 1786507129.2227838}
+{"after": "2e02580219000000", "before": "401f1b0243000000", "data_id": 2, "output": 1, "reason": "6B back", "session_id": "20260812T035827Z", "timestamp": 1786507129.5352778}
+{"after": "4c0976022b000000", "before": "4c0958022b000000", "data_id": 4, "output": 1, "reason": "6B back", "session_id": "20260812T035827Z", "timestamp": 1786507130.0565138}
+{"after": "480c260223000000", "before": "480c580223000000", "data_id": 5, "output": 1, "reason": "6B back", "session_id": "20260812T035827Z", "timestamp": 1786507130.3689945}
+{"after": "401f1b0243000000", "before": "401f580243000000", "data_id": 6, "output": 1, "reason": "6B back", "session_id": "20260812T035827Z", "timestamp": 1786507130.7402644}
+{"after": "0100b8019c000002", "before": "0100ae019c000002", "data_id": 31, "output": 1, "reason": "6B back", "session_id": "20260812T035827Z", "timestamp": 1786507131.082793}
+{"after": "1f00580234000000", "before": "6f09fe0118000000", "data_id": 0, "output": 2, "reason": "6B back", "session_id": "20260812T035827Z", "timestamp": 1786507132.2064304}
+{"after": "6f09fe0118000000", "before": "21111c0218000000", "data_id": 1, "output": 2, "reason": "6B back", "session_id": "20260812T035827Z", "timestamp": 1786507132.6664298}
+{"after": "21111c0218000000", "before": "2c14300219000000", "data_id": 2, "output": 2, "reason": "6B back", "session_id": "20260812T035827Z", "timestamp": 1786507133.000134}
+{"after": "2c14300219000000", "before": "ae19130218000000", "data_id": 3, "output": 2, "reason": "6B back", "session_id": "20260812T035827Z", "timestamp": 1786507133.3176064}
+{"after": "ae19130218000000", "before": "ae19580218000000", "data_id": 4, "output": 2, "reason": "6B back", "session_id": "20260812T035827Z", "timestamp": 1786507133.6928053}
+{"after": "0100e00100000003", "before": "0100d60100000003", "data_id": 31, "output": 2, "reason": "6B back", "session_id": "20260812T035827Z", "timestamp": 1786507134.0613098}
+{"after": "010068014200000f", "before": "010072014200000f", "data_id": 31, "output": 6, "reason": "6C mirror probe", "session_id": "20260812T035827Z", "timestamp": 1786507134.615109}
+{"after": "010072014200000f", "before": "010068014200000f", "data_id": 31, "output": 6, "reason": "6C back", "session_id": "20260812T035827Z", "timestamp": 1786507135.8613226}
+{"after": "010068014200000f", "before": "010072014200000f", "data_id": 31, "output": 6, "reason": "6C gang write", "session_id": "20260812T035827Z", "timestamp": 1786507136.6925056}
+{"after": "0100680142000012", "before": "0100720142000012", "data_id": 31, "output": 7, "reason": "6C gang write", "session_id": "20260812T035827Z", "timestamp": 1786507137.0387533}
+{"after": "010072014200000f", "before": "010068014200000f", "data_id": 31, "output": 6, "reason": "6C back", "session_id": "20260812T035827Z", "timestamp": 1786507138.357441}
+{"after": "0100720142000012", "before": "0100680142000012", "data_id": 31, "output": 7, "reason": "6C back", "session_id": "20260812T035827Z", "timestamp": 1786507139.5824223}

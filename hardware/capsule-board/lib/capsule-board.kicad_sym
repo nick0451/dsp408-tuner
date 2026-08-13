@@ -1,0 +1,140 @@
+(kicad_symbol_lib
+  (version 20241209)
+  (generator "kicad-mcp")
+  (generator_version "9.0")
+  (symbol "OPA1662"
+    (exclude_from_sim no)
+    (in_bom yes)
+    (on_board yes)
+    (property "Reference" "U"
+      (at 2.54 0 0)
+      (effects
+        (font (size 1.27 1.27))
+      )
+    )
+    (property "Value" "OPA1662"
+      (at 0 -2.54 0)
+      (effects
+        (font (size 1.27 1.27))
+      )
+    )
+    (property "Footprint" "Package_SO:MSOP-8_3x3mm_P0.65mm"
+      (at 0 -5.08 0)
+      (effects
+        (font (size 1.27 1.27))
+      )
+      (hide yes)
+    )
+    (property "Datasheet" "https://www.ti.com/lit/ds/symlink/opa1662.pdf"
+      (at 0 -7.62 0)
+      (effects
+        (font (size 1.27 1.27))
+      )
+      (hide yes)
+    )
+    (property "Description" "TI OPA1662 dual low-noise audio op-amp, 3V-36V single supply, SOIC-8/VSSOP-8. Single-unit symbol (project-local; the stock Amplifier_Operational:OPA1662D is an extends-derived symbol that the MCP embeds without its parent)."
+      (at 0 -10.16 0)
+      (effects
+        (font (size 1.27 1.27))
+      )
+      (hide yes)
+    )
+    (property "ki_keywords" "opamp dual audio low-noise OPA1662"
+      (at 0 0 0)
+      (effects
+        (font (size 1.27 1.27))
+      )
+      (hide yes)
+    )
+    (symbol "OPA1662_0_1"
+      (rectangle
+        (start -7.62 -10.16)
+        (end 7.62 10.16)
+        (stroke (width 0.254) (type default))
+        (fill (type background))
+      )
+    )
+    (symbol "OPA1662_1_1"
+      (pin input line
+        (at -10.16 7.62 0)
+        (length 2.54)
+        (name "-IN_A"
+          (effects (font (size 1.27 1.27)))
+        )
+        (number "2"
+          (effects (font (size 1.27 1.27)))
+        )
+      )
+      (pin input line
+        (at -10.16 5.08 0)
+        (length 2.54)
+        (name "+IN_A"
+          (effects (font (size 1.27 1.27)))
+        )
+        (number "3"
+          (effects (font (size 1.27 1.27)))
+        )
+      )
+      (pin input line
+        (at -10.16 -5.08 0)
+        (length 2.54)
+        (name "-IN_B"
+          (effects (font (size 1.27 1.27)))
+        )
+        (number "6"
+          (effects (font (size 1.27 1.27)))
+        )
+      )
+      (pin input line
+        (at -10.16 -7.62 0)
+        (length 2.54)
+        (name "+IN_B"
+          (effects (font (size 1.27 1.27)))
+        )
+        (number "5"
+          (effects (font (size 1.27 1.27)))
+        )
+      )
+      (pin output line
+        (at 10.16 6.35 180)
+        (length 2.54)
+        (name "OUT_A"
+          (effects (font (size 1.27 1.27)))
+        )
+        (number "1"
+          (effects (font (size 1.27 1.27)))
+        )
+      )
+      (pin output line
+        (at 10.16 -6.35 180)
+        (length 2.54)
+        (name "OUT_B"
+          (effects (font (size 1.27 1.27)))
+        )
+        (number "7"
+          (effects (font (size 1.27 1.27)))
+        )
+      )
+      (pin power_in line
+        (at 0 12.7 270)
+        (length 2.54)
+        (name "V+"
+          (effects (font (size 1.27 1.27)))
+        )
+        (number "8"
+          (effects (font (size 1.27 1.27)))
+        )
+      )
+      (pin power_in line
+        (at 0 -12.7 90)
+        (length 2.54)
+        (name "V-"
+          (effects (font (size 1.27 1.27)))
+        )
+        (number "4"
+          (effects (font (size 1.27 1.27)))
+        )
+      )
+    )
+  )
+)

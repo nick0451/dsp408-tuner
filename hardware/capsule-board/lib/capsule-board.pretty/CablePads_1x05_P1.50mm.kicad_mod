@@ -1,0 +1,74 @@
+(footprint "CablePads_1x05_P1.50mm"
+  (version 20241229)
+  (generator "kicad-mcp")
+  (generator_version "9.0")
+  (layer "F.Cu")
+  (descr "Five SMD wire-solder pads on 1.5mm pitch for 4-core shielded mic cable. Pad order: 1=+5V, 2=AGND, 3=HOT, 4=COLD, 5=SHIELD. Span 6.9mm, fits an 8mm wide board.")
+  (tags "cable solder pad wire mic")
+
+  (property "Reference" "REF**" (at 0 -2.3 0)
+    (layer "F.SilkS")
+    (uuid "da38e2d4-d578-4367-8d9d-3f5f0b25d5e4")
+    (effects (font (size 1 1) (thickness 0.15)))
+  )
+  (property "Value" "CablePads_1x05_P1.50mm" (at 0 2.3 0)
+    (layer "F.Fab")
+    (uuid "09fa4fe7-db5a-4c66-a638-b09d0a82518d")
+    (effects (font (size 1 1) (thickness 0.15)))
+  )
+  (property "Datasheet" "" (at 0 0 0)
+    (layer "F.Fab")
+    (uuid "11d72083-50e2-4972-92cd-decac43ad979")
+    (effects (font (size 1 1) (thickness 0.15)))
+  )
+
+  (fp_rect
+    (start -3.7 -1.5)
+    (end 3.7 1.5)
+    (stroke (width 0.05) (type default))
+    (fill none)
+    (layer "F.CrtYd")
+    (uuid "648b96cd-d715-48dd-a343-f323ecdd6645")
+  )
+
+  (pad "1" smd roundrect
+    (at -3 0)
+    (size 0.9 2.5)
+    (layers "F.Cu" "F.Paste" "F.Mask")
+    (roundrect_rratio 0.25)
+    (uuid "1d5e57ac-9dbe-485a-b6c2-a06c25ef593c")
+  )
+
+  (pad "2" smd roundrect
+    (at -1.5 0)
+    (size 0.9 2.5)
+    (layers "F.Cu" "F.Paste" "F.Mask")
+    (roundrect_rratio 0.25)
+    (uuid "93edaad5-c374-4d72-bdd6-953639bf7f1b")
+  )
+
+  (pad "3" smd roundrect
+    (at 0 0)
+    (size 0.9 2.5)
+    (layers "F.Cu" "F.Paste" "F.Mask")
+    (roundrect_rratio 0.25)
+    (uuid "8ecddde2-5fa9-4d2a-a6bb-16ce4968883e")
+  )
+
+  (pad "4" smd roundrect
+    (at 1.5 0)
+    (size 0.9 2.5)
+    (layers "F.Cu" "F.Paste" "F.Mask")
+    (roundrect_rratio 0.25)
+    (uuid "ff139df4-27f3-4ccb-ae9c-83aaa2e6d85b")
+  )
+
+  (pad "5" smd roundrect
+    (at 3 0)
+    (size 0.9 2.5)
+    (layers "F.Cu" "F.Paste" "F.Mask")
+    (roundrect_rratio 0.25)
+    (uuid "f1f70164-3a29-4864-8679-d230b0a8d534")
+  )
+
+)
