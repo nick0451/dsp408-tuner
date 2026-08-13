@@ -524,6 +524,82 @@ under 6 dB is tight, and **over 30 dB is also wrong** — that is converter rang
 thrown away, and it surfaces as a coarser repeatability floor rather than as
 anything resembling a fault.
 
+> ### ⛔ Every acoustic stimulus played an octave high, and nothing noticed
+>
+> Found 2026-08-13, the first time this rig produced sound. **The single most
+> dangerous class of bug this project has hit**, because the capture it
+> produces is clean by every measure the code has.
+>
+> `play_record` builds its playback buffer as `max(out_channels) + 1` columns
+> wide. Measuring output channel 0 gives **one** column. The split path then
+> opens the output stream at the buffer's width — and a WASAPI stream in
+> **exclusive** mode performs no format conversion, because that is what
+> exclusive mode *is*. Handed a mono buffer, a two-channel device reads the
+> samples as interleaved stereo frames and consumes them two at a time.
+>
+>     sent 1000 Hz  ->  heard 1984.2 Hz   (buffer channels=1)
+>     sent 1000 Hz  ->  heard 1000.0 Hz   (buffer channels=2)
+>
+> Confirmed as a ratio, not a fixed tone, by sweeping the request: 700 → 1403.3
+> and 1400 → 2806.0, a consistent factor of 2.
+>
+> #### Why every existing precondition passed
+>
+> This is the part worth keeping. The four rig-verification checks, the safety
+> limiter and the deconvolution all had nothing to say:
+>
+> | check | why it was blind |
+> |---|---|
+> | idle noise floor | measured with no stimulus; unaffected |
+> | stimulus arrives | a signal *did* arrive, at a healthy level |
+> | median of repeats | every repeat is wrong in exactly the same way |
+> | level linearity | gain is level-independent at the wrong frequency too |
+> | clipping / DC | levels are untouched — the samples are the same values |
+> | wall-clock rate | **both streams measured correct**, 47 839 and 47 957 Hz |
+>
+> The capture was a clean, steady, full-duration tone at a plausible level.
+> A sweep through it deconvolves into a smooth, entirely plausible frequency
+> response — of a system shifted one octave.
+>
+> **The level is right and the spectrum is not**, which is why this is not a
+> failure of `tuner.safety` and is still safety-relevant: a sweep band-limited
+> for a particular driver arrives an octave away from where it was aimed. Rule
+> 6's shape again — a correctly-limited stimulus arriving somewhere the limiter
+> cannot see.
+>
+> #### The guard, and why it had to be a new kind of check
+>
+> Every precondition in `measure.qa` asked whether the signal was **clean**.
+> None asked whether it was **the signal we sent**. `measure_tone_roundtrip` +
+> `require_correct_timebase` now do: one tone, under two seconds, and it
+> searches the whole audible band for the loudest bin rather than a window
+> around the request — a window would find the largest peak *near* where the
+> tone was meant to be, which is the assumption under test.
+>
+> It has a third outcome. Below `DEFAULT_ROUNDTRIP_MARGIN_DB` the peak is the
+> room's, so it raises `IndeterminateTimebase` rather than passing.
+>
+> Three general lessons:
+>
+> - **A known-answer test on the rig is not the same as a known-answer test on
+>   the maths.** This project had analytic tests, golden frames and a REW
+>   comparison, and none of them ran through the acoustic path.
+> - **The wall-clock rate check was the wrong instrument and looked like the
+>   right one.** Both streams delivered the right number of frames per second.
+>   The fault was in how the frames were *interpreted*, which no rate
+>   measurement can see.
+> - **Reasoning produced three wrong diagnoses in a row** — a partial capture,
+>   an independent room tone, a clock ratio — and each was plausible. What
+>   settled it was sweeping the requested frequency and looking at the ratio,
+>   which took one minute.
+>
+> The fake could not have caught this either: `FakePortAudio.query_devices`
+> reported whatever was asked for, so a channel-count mismatch was
+> inexpressible. It now carries `device_output_channels` / `device_input_channels`,
+> defaulting to 2. *Same lesson as the padding bug below, one layer out: a test
+> double that cannot represent the hardware's constraints cannot fail the way
+> the hardware does.*
+
 > ### ⚠ Padding a short capture hid an all-zero measurement
 >
 > Found 2026-08-13, first time the split-clock path met hardware.

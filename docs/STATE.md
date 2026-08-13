@@ -17,7 +17,7 @@ is gone; do not recreate one above the project.
 it ran on 2026-08-12: arm, isolation, floor, baseline, fit, write, verify,
 settle, accepted, device restored and verified byte-identical afterwards.
 
-    pytest 1512 passing    ruff clean
+    pytest 1519 passing    ruff clean
     dsp408_probe rehearse 29/29    tune_run rehearse 41/41
 
 **Since then, two fixes, both below.**
@@ -203,6 +203,55 @@ with the car half-written.
 analog stage at all -- but a vendor app over USB-B is one of the three measured
 arbitration signatures that kills the RFCOMM link, so streaming audio in over
 USB while holding a control link may do the same. Measure before cabling.
+
+### Second attempt at air, 2026-08-13. Sound, and the octave bug.
+
+The interface turned out to have two level knobs and only the big one is
+**Monitor**; the rear line outputs were down while the headphone jack was up.
+With that fixed, sound reached the speakers and the acoustic path ran for the
+first time.
+
+**It was playing every stimulus one octave high.** See `CLAUDE.md` for the
+mechanism and the full list of why nothing caught it. Fixed in
+`audio.io._widen`, verified on hardware — a swept request now returns ratio
+1.000 at 500, 700, 1000, 1400 and 2000 Hz.
+
+**The guard is `measure_tone_roundtrip` + `require_correct_timebase`**, wired
+into `tune_run measure` between the idle floor and the linearity sweep. First
+run with it in circuit: *sent 1255 Hz, received 1255.0 Hz, ratio 1.0000, 82.8
+dB over the floor.*
+
+**A provenance defect found on the way in**: `tune_run measure` hardcoded
+`Coupling.ELECTRICAL`, which is the branch that exempts a measurement from
+both the setup token and the temperature. Every microphone sweep it took
+would have been recorded as if it had gone down a cable. Now derived from
+`--mic` by `_coupling`, and `_require_declarations` refuses an acoustic
+session with no `--setup-token` **before the DSP is contacted and before any
+stimulus is emitted**.
+
+#### Still open: the bench environment is not stable enough to characterise
+
+Idle floor across four consecutive runs on an unchanged rig: **−82.7, −64.8,
+−63.8, −101.2 dBFS**. A 37 dB range. Until that settles, no floor measured
+here means anything.
+
+What is known so far, from the quietest run:
+
+| tone | spread over −30 to −20 dBFS |
+|---|---|
+| 1255 Hz | **0.08 dB** |
+| 2188 Hz | 0.95 dB |
+| 720 Hz | 8.80 dB |
+
+And over the default −40 to −20 range, 1255 Hz spreads 1.28 dB with almost
+all of it between −40 and −30 — **a gate in the Logitech plate amp**, well
+below where the run operates. The direction confirms it is real rather than
+noise: gain *falls* at low level, and noise inflates low-level readings.
+
+`measure` gained `--linearity-levels` so the probed range is an explicit,
+recorded operator claim rather than a default that suits an electrical
+loopback with 60 dB of headroom. Narrowing it is a claim that the run
+operates inside the narrower range, not a way to make a limiter pass.
 
 ### First attempt at air, 2026-08-13. No measurement, three findings.
 
@@ -678,7 +727,7 @@ app connected over USB-B the device accepts the Bluetooth RFCOMM link and then
 ignores it completely — no reply, no error, no disconnect. Detach USB before
 opening the socket.
 
-`pytest` → **1512 passing**, `ruff check .` → clean, `dsp408_probe rehearse` →
+`pytest` → **1519 passing**, `ruff check .` → clean, `dsp408_probe rehearse` →
 29/29, `tune_run rehearse` → 41/41. Everything runs with no hardware attached.
 
 ### What the bench session settled
@@ -1030,7 +1079,7 @@ report what that compromise cost. `budget.normalize_delays` implemented.
 photographs). All are load-bearing: several conclusions rest on them and are
 pinned by tests.
 
-**Tests: 1512.** Of these, 209 are the protocol golden frames and 18 the bulk
+**Tests: 1519.** Of these, 209 are the protocol golden frames and 18 the bulk
 record — both checked against evidence from outside this project. The rest are
 largely self-referential by necessity: **the suite runs against `sim.py`, which
 encodes our model of the device, including the knowingly-wrong single-pool
@@ -2091,7 +2140,7 @@ is **not** the HF artifact (alignment suppresses it to ~0.1–0.36 dB, an order 
 magnitude too small), and my first replacement for it measured *worse* than what
 it replaced. Both were caught by measuring rather than reasoning.
 
-Test count went 237 → 577 → 1058 → 1159 → 1241 → 1258 → 1292 → 1294 → 1297 → 1316 → 1327 → 1334 → 1347 → 1354 → 1365 → 1371 → 1388 → 1392 → 1396 → 1408 → 1454 → 1508 → **1512**.
+Test count went 237 → 577 → 1058 → 1159 → 1241 → 1258 → 1292 → 1294 → 1297 → 1316 → 1327 → 1334 → 1347 → 1354 → 1365 → 1371 → 1388 → 1392 → 1396 → 1408 → 1454 → 1508 → 1512 → **1519**.
 
 #### Standing rules for bench sessions
 

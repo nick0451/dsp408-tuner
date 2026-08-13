@@ -121,6 +121,50 @@ def _extra_settings(device: str | int, exclusive: bool) -> object | None:
     return sd.WasapiSettings(exclusive=True)
 
 
+def _device_channels(device: str | int, direction: str) -> int:
+    """How many channels the device actually has, in the given direction.
+
+    Needed because :func:`sd.playrec`'s ``output_mapping`` does not exist on
+    the raw stream API this path uses. There, the buffer's own width *is* the
+    channel count, so it has to match the hardware rather than the caller's
+    highest channel index.
+    """
+    import sounddevice as sd
+
+    info = sd.query_devices(device)
+    return int(info[f"max_{direction}_channels"])
+
+
+def _widen(playback: np.ndarray, channels: int) -> np.ndarray:
+    """Pad a playback buffer out to the device's channel count.
+
+    **This is a correctness fix, not tidiness.** A WASAPI stream in exclusive
+    mode performs no format conversion at all -- that is what exclusive mode
+    *means*, and it is why this project uses it to reach 48 kHz. Hand such a
+    stream a buffer narrower than the device's native format and the driver
+    reads the samples as interleaved frames of the format it does have. On a
+    two-channel device, a mono buffer is therefore consumed at two samples per
+    frame: **every stimulus plays at double speed, one octave high.**
+
+    Measured on the bench 2026-08-13, a 1000 Hz tone through this path:
+
+        buffer channels=1  ->  heard 1984.2 Hz   (-72.0 dBFS)
+        buffer channels=2  ->  heard 1000.0 Hz   (-64.4 dBFS)
+
+    Nothing else reports it. Both streams' wall-clock rates measure correct,
+    the level is untouched, no frames are dropped, and the capture is full of
+    a clean steady tone -- of the wrong frequency. The level being untouched
+    is why this is not a safety-limiter failure, and the spectrum being
+    shifted is why it is still a safety-relevant one: a sweep band-limited for
+    a particular driver arrives an octave away from where it was aimed.
+    """
+    if channels <= playback.shape[1]:
+        return playback
+    wide = np.zeros((playback.shape[0], channels), dtype=playback.dtype)
+    wide[:, : playback.shape[1]] = playback
+    return wide
+
+
 def _play_record_split(
     playback: np.ndarray,
     capture_channels: list[int],
@@ -143,7 +187,13 @@ def _play_record_split(
     import sounddevice as sd
 
     frames: list[np.ndarray] = []
-    n_in = max(capture_channels) + 1
+
+    # Both widths come from the hardware, not from the caller's channel
+    # indices. See `_widen`: in exclusive mode a narrow buffer is not padded,
+    # it is reinterpreted, and the stimulus comes back an octave high.
+    n_out = max(_device_channels(split.output, "output"), playback.shape[1])
+    n_in = max(_device_channels(split.input, "input"), max(capture_channels) + 1)
+    playback = _widen(playback, n_out)
 
     def on_input(indata, _frames, _time, _status) -> None:  # noqa: ANN001
         frames.append(indata.copy())

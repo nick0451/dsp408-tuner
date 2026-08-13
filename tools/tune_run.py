@@ -698,6 +698,57 @@ def _capture_path(args) -> tuple[object, int, tuple[int, ...]]:
     )
 
 
+def _coupling(args) -> Coupling:
+    """Electrical or acoustic, read off the rig rather than assumed.
+
+    Not a cosmetic label. ``ELECTRICAL`` is the branch of
+    :meth:`Provenance.why_incomparable` that exempts a measurement from both
+    the setup token and the temperature, on the grounds that a cable has no
+    room, no microphone position and no propagation path. Applied to a
+    measurement that went through air, that exemption is simply false, and it
+    is false in the permissive direction -- two measurements either side of the
+    microphone being moved would compare equal.
+    """
+    return Coupling.ACOUSTIC if getattr(args, "mic", False) else Coupling.ELECTRICAL
+
+
+def _require_declarations(args) -> None:
+    """Refuse an acoustic session with nothing declared about the setup.
+
+    Runs **before the DSP is contacted and before any stimulus is emitted**,
+    because it is a structural fact about the invocation and not something
+    that can only be learned from a measurement. This project has already
+    fitted and written eleven blocks before discovering an equivalent defect
+    at the verification stage.
+
+    The token is refused; the thermometer is only warned about. The difference
+    is that the operator can type a token in five seconds and this rig has no
+    temperature sensor at all, and a check that cannot be satisfied is a check
+    that gets bypassed.
+    """
+    if _coupling(args) is not Coupling.ACOUSTIC:
+        return
+    if not getattr(args, "setup_token", None):
+        raise SystemExit(
+            "--setup-token is required for a microphone session.\n\n"
+            "Microphone position, seat position, doors, windows, HVAC and "
+            "occupancy move the response far more than temperature does, and "
+            "none of them is visible to this program. The token is your "
+            "verbatim claim that the physical configuration is unchanged; it "
+            "is compared literally, so two measurements carrying different "
+            "tokens are incomparable whatever the thermometer says.\n\n"
+            '  --setup-token "bench 2.1, mic on stand 1 m on axis, doors shut"'
+        )
+    if getattr(args, "temperature_c", None) is None:
+        print(
+            "NOTE: no --temperature-c. These measurements are acoustic, so "
+            "they\n"
+            "      cannot be compared against any later session without one. "
+            "The\n"
+            "      floor itself is a within-session spread and is unaffected."
+        )
+
+
 def _sample_rate(device: tuple[str, str]) -> int:
     """The rate both ends of the interface are configured for.
 
@@ -774,12 +825,15 @@ def cmd_measure(args) -> int:
     from tuner.measure.qa import (
         measure_idle_noise,
         measure_level_linearity,
+        measure_tone_roundtrip,
+        require_correct_timebase,
         require_linear_path,
     )
     from tuner.optimize.target import from_points
     from tuner.optimize.verify import measure_repeatability
     from tuner.orchestrate.objective import MagnitudeObjective
 
+    _require_declarations(args)
     device, sample_rate_hz, in_channels = _capture_path(args)
     output = args.output - 1
 
@@ -827,6 +881,29 @@ def cmd_measure(args) -> int:
     print()
     print("Idle noise floor")
     print(idle.report())
+
+    # Known answer, before anything harder is attempted: a tone sent at a
+    # frequency must come back at that frequency. Nothing else in the rig
+    # checks it, and on 2026-08-13 this path returned a clean, steady,
+    # full-duration 1984 Hz tone for a 1000 Hz stimulus while every other
+    # precondition passed.
+    roundtrip = measure_tone_roundtrip(
+        sample_rate_hz=sample_rate_hz,
+        output_channel=OUT_CHANNEL,
+        input_channel=in_channels[0],
+        idle=idle,
+        device=device,
+        limit=limit,
+        freq_hz=_roundtrip_tone(live),
+    )
+    require_correct_timebase(roundtrip)
+    print(f"\nTimebase       {roundtrip.report()}")
+
+    levels = (
+        {"levels_dbfs": tuple(args.linearity_levels)} if args.linearity_levels else {}
+    )
+    if levels:
+        print(f"  levels {levels['levels_dbfs']} dBFS, narrowed by the operator")
     linearity = measure_level_linearity(
         sample_rate_hz=sample_rate_hz,
         output_channel=OUT_CHANNEL,
@@ -834,6 +911,7 @@ def cmd_measure(args) -> int:
         device=device,
         limit=limit,
         freqs_hz=tones,
+        **levels,
     )
     # Absolute, against the floor just measured -- see qa.usable_against. A
     # relative test cannot see a mains harmonic or a blower tone landing on a
@@ -853,7 +931,7 @@ def cmd_measure(args) -> int:
     info = SessionInfo(
         gains_db=(0.0,),
         temperature_c=args.temperature_c,
-        coupling=Coupling.ELECTRICAL,
+        coupling=_coupling(args),
         setup_token=args.setup_token,
         notes={"purpose": "bench session floor", "dsp_output": str(args.output)},
     )
@@ -972,6 +1050,20 @@ def _passband_tones(config) -> tuple[float, ...]:
             f"passband {lo:.0f}-{hi:.0f} Hz is too narrow for linearity tones"
         )
     return (round(lo, 1), round((lo * hi) ** 0.5, 1), round(hi, 1))
+
+
+def _roundtrip_tone(config) -> float:
+    """One frequency for the timebase known-answer check.
+
+    The geometric centre of the passband, so it is as far from both crossover
+    corners as the channel allows. That matters more here than for the
+    linearity tones: the check searches the **whole** audible range for the
+    loudest bin rather than a window around the request, so a tone sitting on
+    a skirt gives the room's own peak a chance to win and turns a real answer
+    into an indeterminate one.
+    """
+    lo, hi = _passband_tones(config)[0], _passband_tones(config)[-1]
+    return round((lo * hi) ** 0.5, 1)
 
 
 def _score_band(config) -> tuple[float, float]:
@@ -1521,6 +1613,22 @@ def main() -> int:
             "idle seconds between floor sweeps. The floor is used to judge "
             "measurements taken minutes apart, so back-to-back repeats "
             "understate it -- spread them over the time a tuning run takes."
+        ),
+    )
+    p.add_argument(
+        "--linearity-levels",
+        type=float,
+        nargs="+",
+        default=None,
+        metavar="DBFS",
+        help=(
+            "stimulus levels the linearity check probes. The default spans "
+            "-40 to -6 dBFS, which suits an electrical loopback with 60 dB of "
+            "headroom; acoustically, at a ceiling of -20, it probes two "
+            "octaves of level the sweep never enters and reports the "
+            "amplifier's noise gate as a fault. Narrowing this is a claim "
+            "that the run operates inside the narrower range -- it is "
+            "recorded, and it is not a way to make a real limiter pass."
         ),
     )
     p.add_argument("--points", type=int, default=300)

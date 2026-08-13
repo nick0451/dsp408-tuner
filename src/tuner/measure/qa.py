@@ -463,6 +463,152 @@ def measure_idle_noise(
     return analyze_idle_noise(np.asarray(recorded)[:, 0], sample_rate_hz, bands_hz)
 
 
+#: A round-trip tone may land this far from where it was sent before the
+#: timebase is called wrong. Generous on purpose: the faults this catches are
+#: whole factors -- 2.0 for a channel-format mismatch, 48/44.1 for a rate
+#: mismatch, 0.5 for a doubled buffer -- while a genuine clock difference
+#: between two USB devices is parts per million. Nothing real lands in
+#: between, so a tight tolerance would only add false alarms.
+DEFAULT_TIMEBASE_TOLERANCE = 0.01
+
+#: A round-trip tone this far above the floor before its frequency is
+#: believed. Below it the peak-pick is reading the room, and a wrong answer
+#: from a noise peak is worse than no answer.
+DEFAULT_ROUNDTRIP_MARGIN_DB = 12.0
+
+
+class WrongTimebase(RuntimeError):
+    """Raised when a tone comes back at a different frequency than it left.
+
+    The path is not reproducing the stimulus. Every response measured through
+    it is shifted in frequency and no downstream check can see it -- the
+    level is right, the noise floor is right, no frames are dropped, and the
+    deconvolution yields a smooth, plausible curve of the wrong system.
+    """
+
+
+class IndeterminateTimebase(RuntimeError):
+    """Raised when the round-trip tone was too quiet to locate.
+
+    A third outcome, for the same reason :class:`IndeterminateLinearity` is:
+    the peak of a buried tone is a peak of the noise, and reporting the
+    timebase as correct on that basis is the failure this check exists to
+    prevent.
+    """
+
+
+@dataclass(frozen=True)
+class ToneRoundTrip:
+    """Where a single tone came back, against where it was sent."""
+
+    requested_hz: float
+    received_hz: float
+    received_dbfs: float
+    floor_dbfs: float
+
+    @property
+    def ratio(self) -> float:
+        return self.received_hz / self.requested_hz
+
+    @property
+    def margin_db(self) -> float:
+        return self.received_dbfs - self.floor_dbfs
+
+    def report(self) -> str:
+        return (
+            f"sent {self.requested_hz:.0f} Hz, received "
+            f"{self.received_hz:.1f} Hz at {self.received_dbfs:.1f} dBFS "
+            f"({self.margin_db:.1f} dB over the floor); ratio {self.ratio:.4f}"
+        )
+
+
+def measure_tone_roundtrip(
+    sample_rate_hz: int,
+    output_channel: int,
+    input_channel: int,
+    idle: IdleNoiseResult,
+    device: str | int | tuple[int, int] | None = None,
+    limit: ChannelLimit = _DEFAULT_LIMIT,
+    freq_hz: float = 1000.0,
+    duration_s: float = 1.5,
+    settle_s: float = 0.3,
+) -> ToneRoundTrip:
+    """Play one tone and find where it lands. A known-answer test on the rig.
+
+    Every other precondition in this module asks whether the signal is
+    *clean*. None of them asks whether it is the signal we sent. Measured on
+    the bench 2026-08-13: a mono buffer handed to a WASAPI stream in exclusive
+    mode on a two-channel device is consumed as interleaved stereo, so a
+    1000 Hz tone arrived at 1984 Hz -- steady, clean, full-duration, at a
+    plausible level, and invisible to the quiet-path check, the
+    stimulus-arrives check, the repeat median and the linearity sweep alike.
+
+    Cheap enough to run every session: one tone, under two seconds.
+    """
+    n = int(round(duration_s * sample_rate_hz))
+    t = np.arange(n) / sample_rate_hz
+    stimulus = apply(np.sin(2.0 * np.pi * freq_hz * t), limit.ceiling_dbfs, limit)
+    recorded = play_record(
+        stimulus,
+        output_channel=output_channel,
+        input_channels=[input_channel],
+        sample_rate_hz=sample_rate_hz,
+        device=device,
+        tail_s=0.0,
+        max_peak_dbfs=limit.ceiling_dbfs,
+    )
+    y = np.asarray(recorded)[int(settle_s * sample_rate_hz) :, 0]
+
+    window = np.hanning(y.size)
+    spectrum = np.abs(np.fft.rfft(y * window)) / (np.sum(window) / 2.0)
+    bins = np.fft.rfftfreq(y.size, 1.0 / sample_rate_hz)
+
+    # Search the whole audible range, not a window around the request. A
+    # window would find the largest bin *near* where the tone was meant to be,
+    # which is exactly the assumption under test.
+    audible = (bins > 20.0) & (bins < 20_000.0)
+    k = int(np.argmax(spectrum[audible]))
+    received_hz = float(bins[audible][k])
+    received_dbfs = float(20.0 * np.log10(spectrum[audible][k] + 1e-30))
+    floor_dbfs = float(idle.level_at(np.array([received_hz]))[0])
+
+    return ToneRoundTrip(
+        requested_hz=freq_hz,
+        received_hz=received_hz,
+        received_dbfs=received_dbfs,
+        floor_dbfs=floor_dbfs,
+    )
+
+
+def require_correct_timebase(
+    result: ToneRoundTrip,
+    tolerance: float = DEFAULT_TIMEBASE_TOLERANCE,
+    min_margin_db: float = DEFAULT_ROUNDTRIP_MARGIN_DB,
+) -> None:
+    """Raise unless the round-trip tone came back where it was sent."""
+    if result.margin_db < min_margin_db:
+        raise IndeterminateTimebase(
+            f"the round-trip tone was only {result.margin_db:.1f} dB above the "
+            f"noise floor, and {min_margin_db:.0f} dB is needed before its "
+            f"frequency means anything -- below that the peak is the room's, "
+            f"not ours. Raise the acoustic level or quiet the room; do not "
+            f"lower the bar.\n  {result.report()}"
+        )
+    if abs(result.ratio - 1.0) > tolerance:
+        raise WrongTimebase(
+            f"a tone sent at {result.requested_hz:.0f} Hz came back at "
+            f"{result.received_hz:.1f} Hz -- a factor of {result.ratio:.4f}. "
+            f"The path is not reproducing the stimulus, so every response "
+            f"measured through it is shifted in frequency, and no other check "
+            f"in this module can see that.\n\n"
+            f"Suspect, in order: a playback buffer narrower than the device's "
+            f"native channel count (exclusive mode does no conversion, and a "
+            f"mono buffer on a stereo device plays an octave high); a stream "
+            f"opened at a rate the device did not honour; or a host-side "
+            f"resampler.\n  {result.report()}"
+        )
+
+
 def require_quiet_path(
     result: IdleNoiseResult,
     level_dbfs: float,
