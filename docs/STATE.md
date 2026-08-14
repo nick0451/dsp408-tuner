@@ -204,6 +204,109 @@ analog stage at all -- but a vendor app over USB-B is one of the three measured
 arbitration signatures that kills the RFCOMM link, so streaming audio in over
 USB while holding a control link may do the same. Measure before cabling.
 
+### ➡ NEXT: the car, 2026-08-14. Read [car-system.md](car-system.md) first.
+
+**The drivers have no passive crossovers.** The DSP's filters are the only
+thing between a full-range signal and a 1-inch tweeter, so a wrong crossover
+write ends a driver rather than degrading a sound. Every channel, every clip
+limit, every cited driver spec and every recommended change is in
+[car-system.md](car-system.md), with its evidence grade.
+
+**`tools/bench_flatten.py` would have destroyed the tweeters** as it stood
+last night: it opens crossovers to 20 Hz - 20 kHz, which is right for a plate
+amp that splits its own signal and fatal for a bare Audiofrog GB10. It now
+refuses to widen any channel high-passed at or above 1000 Hz unless given
+`--crossover-basis`, and `--keep-crossovers` flattens the EQ alone. Verified
+refusing on OUT3/4.
+
+Three things the car session needs that are not built:
+
+1. **A per-channel limits registry.** `car-system.md` holds the numbers as
+   prose; nothing enforces them. `orchestrate.plan.DriverCeiling` is the right
+   shape and the clip limits, minimum corners and minimum slopes belong in it.
+2. **`Acoustic` timing reference wired up.** REW supports it natively --
+   confirmed in `/measure/timing/reference/choices` -- and it is what makes
+   relative delay possible with a USB microphone. The reference output must be
+   a **tweeter** and its delay and crossover must be **frozen for the run**.
+3. **The anchor is measured, not chosen.** The alignment anchor is whichever
+   driver arrives latest, because a DSP can only add delay. Usually the
+   subwoofer and *not always*, and this project has already written down that
+   it must never be hardcoded.
+
+One open question that gates raising any level on channels 5/6: **which
+CT Sounds Meso 6.5 is installed, and what is its Fs?** The channel is
+high-passed at 65 Hz and the subwoofer variant of that model publishes Fs
+56.3 Hz. A 65 Hz corner sitting on resonance is where excursion peaks and
+where 12 dB/oct protects least.
+
+### ✅ A second tune, and the instinct that produced it, 2026-08-13 night
+
+A smile target after the Harman one -- both saved as `.DDP` by the operator,
+both judged good. What the second one taught is worth more than the tune.
+
+**Both channels measured separately this time**, five positions each, L then
+R at every position. Not symmetric: R measured **+7.9 dB at 500 Hz where L
+measured +3.0**. Yesterday's assumption that a matched pair can share one
+fit would have been wrong here.
+
+**And the dominant feature of the system was not what anyone expected.**
+
+| rel 1 kHz | 25 | 40 | **50** | 63 | 315 | 500 | 2k | 8k |
+|---|---|---|---|---|---|---|---|---|
+| L | −6.4 | +2.7 | **+15.5** | +3.9 | +3.0 | +3.0 | −3.6 | −1.7 |
+| R | −2.0 | +5.5 | **+18.5** | +6.8 | +6.3 | +7.9 | −1.9 | −3.4 |
+
+A **15-18 dB peak at 50 Hz**, narrow, on both channels, consistent across all
+five positions. Consistency across position is what rules out a room mode --
+those move. That is the sub's **port tuning**, and it is the single largest
+feature in the system's response by a wide margin.
+
+So the fit's −12 dB cut at 50 Hz was the correct answer and not a fitter
+misbehaving at a range boundary, which was the first suspicion. It also means
+a "smile" tune on this system sounds like **less boom** rather than more bass,
+and saying so before the operator listened was the useful part.
+
+#### A wrong conclusion, caught before it was written down
+
+The Bluetooth stimulus path had never been validated, so a known band was
+written and measured differentially. The first pass put a 1000 Hz notch at
+1052 Hz and printed *"THE PATH SHIFTS FREQUENCY."*
+
+**That was wrong, and two things should have stopped it.** 5.26 % is not a
+resampling ratio -- 48/44.1 is 8.84 % and nothing standard lands at 5. And
+`argmin` on a curve whose residual was 1.63 dB rms is a bad frequency
+estimator.
+
+Re-measured properly -- a log-frequency shift fitted over the whole band
+instead of the deepest point, two sweeps per state, and **three different band
+frequencies**:
+
+| requested | implied ratio | residual |
+|---|---|---|
+| 500 Hz | **1.0035** | 0.50 dB |
+| 1000 Hz | 0.9897 | 2.88 dB |
+| 2000 Hz | 1.0774 | 3.84 dB |
+
+A resampled path shifts everything by one multiplier. The spread is 0.088 and
+the apparent shift tracks the residual exactly, so **the path is correct** and
+the first answer was `argmin` picking a comb feature. This is the same test
+that settled the octave bug, where the ratio was a clean 2.00 everywhere.
+
+#### Two client bugs the session found
+
+**`RewApi.measure()` fired the next sweep before REW was idle.** The
+measurement list gains its entry before the sweep is put away, so returning on
+first sight and immediately asking for another gets *"There is already a
+measurement in progress"* -- on the fourth of ten sweeps. It now waits the
+previous one out rather than leaving callers to sprinkle sleeps.
+
+**A native REW measurement and an imported one use different axes.** An import
+comes back log-spaced (`ppo`) because that is how it was sent; a sweep REW ran
+itself comes back linearly spaced (`freqStep`) and starting at DC. The client
+was written against imports alone and fell over on the first real measurement
+-- the same defect as validating a parser against nothing but its author's
+idea of the format.
+
 ### ✅ A real tune, on a real loudspeaker, 2026-08-13 night
 
 The first end-to-end tune this project has produced: measure, fit, write,

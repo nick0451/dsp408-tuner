@@ -1787,6 +1787,35 @@ write is a separate stage.
 >    store rather than after.
 > 4. **The device has no undo, and every write is immediately permanent.** Measured 2026-08-08: parameter writes go straight to non-volatile storage and survive a power cycle with no commit step. The vendor app's bypass/restore is *app session memory*, not a device feature — unplug USB and the pre-bypass values are gone. A backend we write has no equivalent, so **`.DDP` backups and preset slots are the only rollback that exists.** Treat that as a correctness requirement of the improvement invariant, not a convenience. Recalling a preset overwrites the working area but does not modify the preset itself, which makes a preset slot the one restore point that survives everything.
 
+> ### ⛔ On the development car, the DSP's crossover is the only protection
+>
+> Operator, 2026-08-14: **"these drivers ARE NOT FILTERED."** No passive
+> networks, no protection capacitors. Channels 3 and 4 drive **Audiofrog GB10
+> 1-inch tweeters** whose manufacturer specifies a high-pass of **at least
+> 2.5 kHz and at least 12 dB/octave**, and states both power ratings as
+> conditional on it.
+>
+> So a crossover write that lands wrong does not degrade the sound. It ends the
+> driver, and there is no second line of defence behind the DSP.
+>
+> **`tools/bench_flatten.py` opens crossovers to 20 Hz - 20 kHz**, which is
+> right on a bench where the plate amp splits its own signal and fatal on a
+> bare tweeter. It now refuses any channel high-passed at or above
+> `PROTECTED_HIGH_PASS_HZ` (1000 Hz) without a written `--crossover-basis`.
+> The lesson generalises past that one tool: **a default that is safe on the
+> bench can be destructive in the car, and nothing about the code says which
+> rig it is running against.**
+>
+> Note also that **12 dB/octave is a floor, not a target.** A tweeter driven
+> below resonance sees excursion rise 12 dB/octave as frequency falls, so a
+> 12 dB/octave high-pass holds excursion *constant* below the corner rather
+> than reducing it. 24 dB/octave makes it fall. That is general
+> electro-mechanics, not a GB10 claim.
+>
+> Channel-by-channel drivers, cited specs, clip limits and the delay-anchor
+> reasoning are in **[docs/car-system.md](docs/car-system.md)**, with an
+> evidence grade on every row.
+
 ## Ask the operator before reverse-engineering
 
 The operator has physical access to the hardware, the vendor tooling, the

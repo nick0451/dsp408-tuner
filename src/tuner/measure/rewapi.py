@@ -245,6 +245,24 @@ class RewApi:
         """
         self._json("POST", "/audio/java/output-device", {"device": device})
 
+    def output_channel(self) -> str:
+        """Which channel REW sweeps: ``L``, ``R`` or ``L+R``."""
+        return str(self._json("GET", "/audio/java/output-channel")["channel"])
+
+    def set_output_channel(self, channel: str) -> None:
+        """Sweep a different channel.
+
+        **Which speaker was measured is a fact about the measurement**, and
+        assuming it cost a listening test on 2026-08-13: a tune fitted from a
+        left-channel sweep was applied to both outputs, and the right one
+        turned out to be receiving nothing at all. Switching deliberately, and
+        recording which channel produced which fit, is the cheap half of not
+        repeating that.
+        """
+        if channel not in ("L", "R", "L+R"):
+            raise ValueError(f"channel must be L, R or L+R; got {channel!r}")
+        self._json("POST", "/audio/java/output-channel", {"channel": channel})
+
     def set_level(self, level_dbfs: float) -> None:
         """REW's sweep level, in dBFS.
 
@@ -285,8 +303,31 @@ class RewApi:
         202 says the sweep started, not that it finished or succeeded.
         """
         before = set(self.measurements())
-        self._json("POST", "/measure/command", {"command": command})
         deadline = time.monotonic() + settle_s
+
+        # **REW is busy for a while after the measurement appears.** The list
+        # gains its entry before the sweep is fully put away, so a caller that
+        # returns on first sight and immediately asks for another gets
+        # "There is already a measurement in progress" -- observed on the
+        # fourth of ten sweeps. Waiting out the previous one here rather than
+        # sprinkling sleeps through callers.
+        while True:
+            status, text = self._request(
+                "POST", "/measure/command", {"command": command}
+            )
+            if status in (200, 202):
+                break
+            if "already a measurement in progress" not in text:
+                raise RewApiError(
+                    f"POST /measure/command -> HTTP {status}: {text[:300]}"
+                )
+            if time.monotonic() > deadline:
+                raise RewApiError(
+                    f"REW reported a measurement already in progress for "
+                    f"{settle_s:.0f} s and never became free."
+                )
+            time.sleep(0.5)
+
         while time.monotonic() < deadline:
             time.sleep(0.5)
             fresh = set(self.measurements()) - before

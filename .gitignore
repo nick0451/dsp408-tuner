@@ -41,3 +41,9 @@ ghidra_*_PUBLIC/
 # Third-party KiCad MCP server, cloned not vendored. The board design itself
 # lives in hardware/ and IS committed.
 KiCAD-MCP-Server/
+
+# Working files, not restore points. bench_ab rewrites its snapshot every
+# toggle and the ratio check writes a scratch one; the restore points are
+# the pre-* files, which bench_flatten refuses to overwrite.
+snapshots/ab-session.json
+snapshots/bt-ratio-working.json

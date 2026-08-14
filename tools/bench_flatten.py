@@ -50,6 +50,25 @@ from tuner.dsp.dsp408_spp import ADDRESSABLE_BANDS  # noqa: E402
 OPEN_HIGH_PASS_HZ = 20.0
 OPEN_LOW_PASS_HZ = 20_000.0
 
+#: A channel already high-passed at or above this is presumed to be protecting
+#: a driver that needs it, and its corners will not be widened without a
+#: written basis.
+#:
+#: **This tool would otherwise destroy tweeters.** Opening the corners is
+#: correct on the bench, where OUT1/2 feed a plate amp that does its own
+#: splitting. On the development car, channels 3 and 4 drive **Audiofrog GB10
+#: 1-inch tweeters with no passive crossover of any kind** -- the manufacturer
+#: specifies a high-pass of at least 2.5 kHz and at least 12 dB/octave, and
+#: states both power ratings as conditional on it. Widening that to 20 Hz
+#: would put the full stimulus into a 1-inch dome, and there is no second line
+#: of defence behind the DSP.
+#:
+#: 1000 Hz is chosen to sit clearly above any woofer or midbass corner and
+#: clearly below any tweeter corner, so the heuristic does not need to know
+#: what is connected. It is a heuristic, which is why the override exists --
+#: and why the override needs a reason typed by a person.
+PROTECTED_HIGH_PASS_HZ = 1000.0
+
 def _describe(label: str, config) -> None:
     print(
         f"  {label}: gain {config.gain_dbfs:+.2f} dB, delay "
@@ -126,6 +145,39 @@ def cmd_flatten(args) -> int:
             f"--snapshot {args.snapshot_out}"
         )
 
+        # **Refuse to widen a corner that is protecting something.** Checked
+        # after the snapshot so the restore point exists either way, and
+        # before any write.
+        protected = [
+            out for out in outputs
+            if (before[out].crossover.high_pass_hz or 0.0) >= PROTECTED_HIGH_PASS_HZ
+        ]
+        if protected and not args.crossover_basis:
+            raise SystemExit(
+                "REFUSED: "
+                + ", ".join(
+                    f"OUT{out + 1} is high-passed at "
+                    f"{before[out].crossover.high_pass_hz:.0f} Hz"
+                    for out in protected
+                )
+                + f".\n\nA channel filtered at or above "
+                f"{PROTECTED_HIGH_PASS_HZ:.0f} Hz is filtered that high for a "
+                f"reason, and this command would open it to "
+                f"{OPEN_HIGH_PASS_HZ:.0f} Hz. On the development car those "
+                f"channels drive 1-inch tweeters with no passive crossover of "
+                f"any kind, whose manufacturer specifies a high-pass of at "
+                f"least 2.5 kHz -- opening them would put the full stimulus "
+                f"into a 1-inch dome with nothing behind the DSP to stop it.\n\n"
+                f"If the corners genuinely should be opened, say what is "
+                f"connected:\n"
+                f'  --crossover-basis "OUT1/2 feed a plate amp that does its '
+                f'own splitting; no bare driver on these outputs"\n\n'
+                f"Or flatten the EQ only, leaving the crossovers alone:\n"
+                f"  --keep-crossovers"
+            )
+        if args.crossover_basis and protected:
+            print(f"\ncrossover basis: {args.crossover_basis}")
+
         # An **empty** chain, not 31 explicit flat bands. Under
         # `PeqPolicy.EXCLUSIVE` the planner flattens every slot from
         # `len(config.peq)` to `ADDRESSABLE_BANDS`, so an empty request
@@ -138,10 +190,14 @@ def cmd_flatten(args) -> int:
             out: replace(
                 before[out],
                 peq=(),
-                crossover=Crossover(
-                    high_pass_hz=OPEN_HIGH_PASS_HZ,
-                    low_pass_hz=OPEN_LOW_PASS_HZ,
-                    slope_db_oct=before[out].crossover.slope_db_oct,
+                crossover=(
+                    before[out].crossover
+                    if args.keep_crossovers
+                    else Crossover(
+                        high_pass_hz=OPEN_HIGH_PASS_HZ,
+                        low_pass_hz=OPEN_LOW_PASS_HZ,
+                        slope_db_oct=before[out].crossover.slope_db_oct,
+                    )
                 ),
             )
             for out in outputs
@@ -151,8 +207,13 @@ def cmd_flatten(args) -> int:
         for out in outputs:
             print(
                 f"  OUT{out + 1}: EQ cleared on all {ADDRESSABLE_BANDS} slots, "
-                f"crossover {OPEN_HIGH_PASS_HZ:.0f}-{OPEN_LOW_PASS_HZ:.0f} Hz, "
-                f"gain and delay unchanged"
+                + (
+                    "crossover UNCHANGED, "
+                    if args.keep_crossovers
+                    else f"crossover {OPEN_HIGH_PASS_HZ:.0f}-"
+                         f"{OPEN_LOW_PASS_HZ:.0f} Hz, "
+                )
+                + "gain and delay unchanged"
             )
         if not args.confirm:
             print("\nNothing written. Add --confirm to apply.")
@@ -206,6 +267,22 @@ def main() -> int:
                    help="1-based output numbers")
     p.add_argument("--snapshot-out", required=True)
     p.add_argument("--confirm", action="store_true", help="actually write")
+    p.add_argument(
+        "--keep-crossovers",
+        action="store_true",
+        help=(
+            "flatten the EQ and leave the crossovers exactly as they are. The "
+            "safe choice on any system whose drivers have no passive network."
+        ),
+    )
+    p.add_argument(
+        "--crossover-basis",
+        help=(
+            "written justification for opening a crossover that is protecting "
+            "a driver. Name what is connected to those outputs. Recorded, and "
+            "unverifiable by code -- the same family as DriverCeiling.basis."
+        ),
+    )
     # The blast-radius cap defaults to one channel per session, which is right
     # for a bring-up rung and wrong here: flattening a stereo pair is two
     # channels by definition. Raised deliberately and only as far as the
