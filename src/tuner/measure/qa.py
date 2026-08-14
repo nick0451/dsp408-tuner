@@ -209,6 +209,7 @@ def measure_level_linearity(
     levels_dbfs: tuple[float, ...] = DEFAULT_TEST_LEVELS_DBFS,
     duration_s: float = 1.5,
     settle_s: float = 0.4,
+    repeats: int = 1,
 ) -> LinearityResult:
     """Measure gain at several levels and frequencies.
 
@@ -217,7 +218,21 @@ def measure_level_linearity(
 
     ``settle_s`` of each capture is discarded, because a compressor or gate
     that does exist needs time to act and would otherwise be averaged away.
+
+    ``repeats`` captures each (frequency, level) more than once and takes the
+    **median**. One capture is enough down a cable, where this was written and
+    where the floor is stationary. Acoustically it is not: measured on the
+    bench 2026-08-13, repeated identical readings scattered 0.6-1.9 dB
+    standard deviation, which is larger than ``DEFAULT_TOLERANCE_DB`` and made
+    every verdict meaningless. ``capture_sweep`` has always medianed its
+    repeats for the same reason; this check simply never did.
+
+    Median rather than mean, matching ``_combine_passes``: a single
+    contaminated capture is an outlier the median discards and the mean
+    absorbs.
     """
+    if repeats < 1:
+        raise ValueError("repeats must be at least 1")
     usable = tuple(lvl for lvl in levels_dbfs if lvl <= limit.ceiling_dbfs)
     if len(usable) < 2:
         raise ValueError(
@@ -233,23 +248,26 @@ def measure_level_linearity(
         tone = np.sin(2.0 * np.pi * freq * t)
         for j, level in enumerate(usable):
             stimulus = apply(tone, level, limit)
-            recorded = play_record(
-                stimulus,
-                output_channel=output_channel,
-                input_channels=[input_channel],
-                sample_rate_hz=sample_rate_hz,
-                device=device,
-                tail_s=0.0,
-                max_peak_dbfs=limit.ceiling_dbfs,
-            )
-            y = recorded[int(settle_s * sample_rate_hz) :, 0]
-            window = np.hanning(y.size)
-            spectrum = np.fft.rfft(y * window)
-            bins = np.fft.rfftfreq(y.size, 1.0 / sample_rate_hz)
-            amplitude = np.abs(spectrum[np.argmin(np.abs(bins - freq))]) / (
-                np.sum(window) / 2.0
-            )
-            gains[i, j] = 20.0 * np.log10(amplitude + 1e-30) - level
+            passes = []
+            for _ in range(repeats):
+                recorded = play_record(
+                    stimulus,
+                    output_channel=output_channel,
+                    input_channels=[input_channel],
+                    sample_rate_hz=sample_rate_hz,
+                    device=device,
+                    tail_s=0.0,
+                    max_peak_dbfs=limit.ceiling_dbfs,
+                )
+                y = recorded[int(settle_s * sample_rate_hz) :, 0]
+                window = np.hanning(y.size)
+                spectrum = np.fft.rfft(y * window)
+                bins = np.fft.rfftfreq(y.size, 1.0 / sample_rate_hz)
+                amplitude = np.abs(spectrum[np.argmin(np.abs(bins - freq))]) / (
+                    np.sum(window) / 2.0
+                )
+                passes.append(20.0 * np.log10(amplitude + 1e-30))
+            gains[i, j] = float(np.median(passes)) - level
 
     return LinearityResult(freqs_hz=tuple(freqs_hz), levels_dbfs=usable, gain_db=gains)
 

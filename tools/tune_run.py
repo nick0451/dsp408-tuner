@@ -48,7 +48,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from tuner.dsp.device import Dsp408Device, WriteJournal  # noqa: E402
-from tuner.dsp.dsp408_spp import Dsp408Spp, PeqPolicy  # noqa: E402
+from tuner.dsp.dsp408_spp import FLAT_LEVEL_RAW, Dsp408Spp, PeqPolicy  # noqa: E402
 from tuner.dsp.fake_device import FakeDsp408  # noqa: E402
 from tuner.dsp.session import Dsp408Session, Pacing  # noqa: E402
 from tuner.dsp.transport import LoopbackTransport  # noqa: E402
@@ -913,6 +913,7 @@ def cmd_measure(args) -> int:
         device=device,
         limit=limit,
         freqs_hz=tones,
+        repeats=args.tone_repeats,
         **levels,
     )
     # Absolute, against the floor just measured -- see qa.usable_against. A
@@ -1081,6 +1082,273 @@ def _score_band(config) -> tuple[float, float]:
 #: which is the DSP's, never the interface's. Those differ on this bench
 #: (48 000 vs 44 100) and conflating them is a silent error at high frequency.
 DSP_RATE_HZ = 48_000
+
+
+def cmd_fit_from_rew(args) -> int:
+    """Fit a correction from a REW measurement and write it to the DSP.
+
+    **The hybrid.** REW measures; this project fits under the device's real
+    constraints and owns the write. The division is not arbitrary -- each side
+    does what the other cannot:
+
+    * REW measures **harmonic distortion** and **dB SPL against a calibrated
+      microphone**, neither of which this project can do. Both are real gaps,
+      and the bench session that prompted this stalled on audible distortion
+      our level-linearity check could only see indirectly.
+    * Our fitter knows what the DSP-408 will actually accept: **ten** executing
+      bands and not the thirty-one addressed, bandwidth quantised to integer
+      ``bw_raw``, a boost penalty because boost costs headroom, and pruning of
+      bands that sit outside the measured axis. REW's optimiser knows none of
+      that, so filters it proposes may be unwritable, unexecuted, or fitted
+      from no data.
+
+    Three things this does that pointing REW's own EQ at the problem does not.
+
+    **It subtracts the EQ the channel is already running.** A write is
+    ``EXCLUSIVE`` and replaces every band, so the response afterwards is
+    ``raw + fitted``. Fitting the measured curve directly solves
+    ``raw + existing + fitted = target`` and counts the existing EQ twice --
+    demonstrated at **5.9 dB** on a channel pre-loaded with a boost, with the
+    run reporting success both times.
+
+    **It predicts from the achieved parameters, not the requested ones.**
+    Bandwidth quantises and ``bw_raw_for_q`` rounds up, so a requested Q of
+    2.00 becomes 1.983. Reporting the request would fold a known quantisation
+    into the error term.
+
+    **It refuses rather than approximating.** A shelf in a peaking slot, more
+    loaded bands than the firmware executes, an unsendable frame -- each stops
+    the write instead of producing a device that does not match the model.
+
+    ⚠ **REW's sweep does not pass through** :mod:`tuner.safety`. Hard safety
+    rule 1 has no jurisdiction over a stimulus another program plays, and this
+    command cannot give it any: by the time the file exists the sound has
+    happened. On a bench that is the operator's call. In a car with tweeters
+    connected, set REW's level deliberately and check it against
+    ``stimulus_limit`` first -- which this prints.
+
+    ⚠ **And the improvement invariant is only half-satisfiable here.** The
+    prediction below is not evidence. Only a fresh REW measurement, taken
+    after the write, can say whether the tune helped -- and comparing the two
+    is the operator's job, not this command's.
+    """
+    from tuner.dsp import snapshot as snap
+    from tuner.measure.metrics import log_freqs
+    from tuner.measure.rewfile import load as load_rew
+    from tuner.optimize import biquad as biquad_mod
+    from tuner.optimize.target import from_points
+
+    measurement = load_rew(Path(args.measurement))
+    if measurement.is_smoothed and not args.allow_smoothed:
+        raise SystemExit(
+            f"this export is smoothed ({measurement.smoothing!r}).\n\n"
+            f"Fitting a smoothed curve under-corrects narrow features, which "
+            f"is a defensible choice and a silent one -- so it has to be "
+            f"declared. Re-export with smoothing set to None, or pass "
+            f"--allow-smoothed to say you meant it."
+        )
+
+    target_file = load_rew(Path(args.target)) if args.target else None
+    output = args.output - 1
+
+    session_dsp, backend, transport = _live_backend(args, writable=bool(args.apply))
+    with session_dsp:
+        identity = session_dsp.handshake()
+        live = backend.read_channel(output)
+        limit = backend.stimulus_limit(output)
+
+        lo, hi = _score_band(live)
+        freqs = log_freqs(lo, hi, args.points)
+        rate = backend.limits.sample_rate_hz
+
+        print(f"DSP            {transport}")
+        print(f"OUT{args.output} gain      {live.gain_dbfs:+.2f} dB")
+        print(f"OUT{args.output} passband  {lo:.0f} - {hi:.0f} Hz")
+        print(
+            f"stimulus limit {limit.ceiling_dbfs:+.1f} dBFS -- REW measured at "
+            f"a level of its own; this is what WE would have allowed"
+        )
+        print("\nmeasurement")
+        print(measurement.summary())
+
+        measured_db = measurement.at(freqs)
+
+        # The channel's own EQ, modelled out. Same reasoning as
+        # TuneRun._without_existing_eq, and the same refusal above the
+        # supported band count -- subtracting a filter the firmware may never
+        # have run would corrupt the fit as surely as not subtracting one it
+        # did.
+        supported = backend.limits.max_peq_per_channel
+        if len(live.peq) > supported:
+            raise SystemExit(
+                f"OUT{args.output} has {len(live.peq)} non-flat EQ bands but "
+                f"this device executes {supported}. The fit subtracts the "
+                f"loaded EQ from the measurement and cannot know whether the "
+                f"surplus is running. Nothing has been written."
+            )
+        existing_db = biquad_mod.response_db(list(live.peq), freqs, rate)
+        raw_db = measured_db - existing_db
+        if live.peq:
+            print(
+                f"\nsubtracted {len(live.peq)} loaded band(s), "
+                f"{np.min(existing_db):+.2f} to {np.max(existing_db):+.2f} dB "
+                f"over the scored band"
+            )
+
+        if target_file is not None:
+            target_db = target_file.at(freqs)
+            target_name = f"REW export: {target_file.title or Path(args.target).name}"
+        else:
+            target_db = np.zeros_like(freqs)
+            target_name = "flat (shape only; level-matched before fitting)"
+        # Level-match the target to the measurement, exactly as
+        # MagnitudeObjective does before it scores. The fit solves for shape;
+        # the constant belongs to channel gain.
+        target_db = target_db - np.mean(target_db) + np.mean(raw_db)
+        curve = from_points(
+            list(zip(freqs.tolist(), target_db.tolist(), strict=True)), target_name
+        )
+        print(f"target         {curve.name}")
+
+        bands = biquad_mod.fit(
+            raw_db, target_db, freqs, rate, biquad_mod.DEFAULT_CONSTRAINTS
+        )
+        achieved = _quantised(bands)
+        fitted_db = raw_db + biquad_mod.response_db(list(achieved), freqs, rate)
+
+        before = float(np.sqrt(np.mean((raw_db - target_db) ** 2)))
+        after_centred = fitted_db - np.mean(fitted_db) + np.mean(target_db)
+        after = float(np.sqrt(np.mean((after_centred - target_db) ** 2)))
+
+        print(f"\nfitted {len(achieved)} band(s), as the device will hold them:")
+        print(f"  {'#':>2}  {'Hz':>8}  {'dB':>7}  {'Q':>6}  {'octaves':>8}")
+        for i, band in enumerate(achieved, start=1):
+            octaves = _octaves_of(band.q)
+            print(
+                f"  {i:>2}  {band.freq_hz:>8.1f}  {band.gain_dbfs:>+7.2f}  "
+                f"{band.q:>6.3f}  {octaves:>8.3f}"
+            )
+        print(
+            f"\npredicted rms deviation from target: "
+            f"{before:.3f} dB  ->  {after:.3f} dB"
+        )
+        # The fit solves shape and leaves the constant to gain, so whatever
+        # level the chain lands at is what gain has to give back. Reported as
+        # the gain change, not as the chain's mean -- they are opposite in
+        # sign and the chain's mean is the one nobody can act on.
+        gain_change_db = float(np.mean(raw_db) - np.mean(fitted_db))
+        print(f"channel gain would need {gain_change_db:+.2f} dB to restore level")
+
+        _warn_if_the_fit_is_chasing_nulls(raw_db, gain_change_db, after, before)
+
+        if not args.apply:
+            print(
+                "\nNothing written. Add --apply to write this to the device.\n"
+                "The prediction above is not evidence: only a fresh REW\n"
+                "measurement taken after the write can say whether it helped."
+            )
+            return 0
+
+        shot = snap.capture(
+            backend.device,
+            identity,
+            transport_name=transport,
+            notes={"stage": "fit-from-rew", "source": str(args.measurement)},
+        )
+        evidence = shot.save(Path(args.snapshot_out))
+        print(f"\nrestore point  {args.snapshot_out}  ({evidence.digest[:16]})")
+
+        backend.write_channel(output, replace(live, peq=tuple(achieved)))
+        readback = backend.read_channel(output)
+        print(f"wrote {len(achieved)} band(s); readback holds {len(readback.peq)}")
+        print(
+            "\nNow re-measure in REW from the SAME microphone position and\n"
+            "compare. A prediction is not a verdict, and a tune that improved\n"
+            "the model while worsening the room is the failure mode this\n"
+            "whole project is built around catching."
+        )
+    return 0
+
+
+#: A fit demanding more channel gain than this to restore level is almost
+#: certainly cutting the whole curve down to meet a null. Not a device limit
+#: -- it is a smell threshold, and it is stated as one.
+SUSPICIOUS_GAIN_DEMAND_DB = 6.0
+
+
+def _warn_if_the_fit_is_chasing_nulls(
+    raw_db: np.ndarray,
+    gain_change_db: float,
+    after: float,
+    before: float,
+) -> None:
+    """Say so when the fit looks like it is trying to fill a cancellation.
+
+    **A null cannot be equalised.** It is two arrivals cancelling, so boosting
+    it raises both and cancels harder while spending headroom and excursion on
+    nothing. Cutting everything else down to meet it is the same mistake
+    wearing a different sign, and it is what a peaking chain does when handed
+    a flat target and a combed measurement -- because the chain cannot boost a
+    notch, so the only way to reduce rms deviation is to lower the peaks.
+
+    Nothing here is wrong with the fitter. It is solving exactly the problem
+    it was given. The problem is the wrong one, and the operator is the only
+    one who can tell -- so this reports rather than refuses.
+    """
+    depth_db = float(np.max(raw_db) - np.min(raw_db))
+    if abs(gain_change_db) < SUSPICIOUS_GAIN_DEMAND_DB and after < before * 0.6:
+        return
+    print(
+        f"\n⚠ This fit may be chasing a cancellation rather than a response.\n"
+        f"  The measured curve spans {depth_db:.1f} dB peak to trough, and the\n"
+        f"  fit asks for {gain_change_db:+.1f} dB of channel gain to restore "
+        f"level.\n\n"
+        f"  A null is two arrivals cancelling. Boosting it raises both and\n"
+        f"  cancels harder; cutting everything else down to meet it is the\n"
+        f"  same error with the opposite sign, and it is what a peaking chain\n"
+        f"  does when given a flat target and a combed measurement.\n\n"
+        f"  Two things usually fix it, and both are upstream of this tool:\n"
+        f"    - export from REW with **1/6 or 1/3 octave smoothing**, and pass\n"
+        f"      --allow-smoothed. Smoothing removes the narrow cancellations a\n"
+        f"      correction should not attempt while keeping the broad shape\n"
+        f"      that it should;\n"
+        f"    - give a real target with --target instead of flat. A flat\n"
+        f"      target through a loudspeaker in a room is not the goal, and\n"
+        f"      matching one is how a tune ends up fitting the microphone\n"
+        f"      position."
+    )
+
+
+def _octaves_of(q: float) -> float:
+    """Bandwidth in octaves for a peaking section of the given Q."""
+    return float(2.0 / np.log(2.0) * np.arcsinh(1.0 / (2.0 * q)))
+
+
+def _quantised(bands):
+    """What the device will actually hold, after encoding round-trips it.
+
+    Frequency is continuous on this device but bandwidth is not -- an integer
+    ``bw_raw`` at 0.01 octave per step -- and level lands on 0.1 dB steps. A
+    plan reported in requested values hides a quantisation the measurement
+    will then be blamed for. ``predict-check`` learned this: predicting from
+    the request rather than the achieved parameters made a 0.065 dB agreement
+    look worse than it was.
+
+    The round trip goes through the production encoder, not a reimplementation
+    of it. A quantiser that rounds its own way would agree with the device
+    until the day it did not, which is the same trap the write pre-flight
+    fell into by building its frames differently from the transmitter.
+    """
+    from tuner.dsp.dsp408_spp import _band_to_eq, _eq_to_band
+    from tuner.dsp.protocol import EqBand
+
+    # `_band_to_eq` preserves `shf_db` and `type` from whatever is stored in
+    # the slot. Neither affects a peaking section's response, and this is a
+    # projection rather than a write, so a flat template is the honest input:
+    # it makes the quantisation visible without implying anything about which
+    # slot each band will land in.
+    template = EqBand(freq=1000, level=FLAT_LEVEL_RAW, bw=0, shf_db=0, type=0)
+    return tuple(_eq_to_band(_band_to_eq(band, template)) for band in bands)
 
 
 def cmd_predict_check(args) -> int:
@@ -1618,6 +1886,20 @@ def main() -> int:
         ),
     )
     p.add_argument(
+        "--tone-repeats",
+        type=int,
+        default=1,
+        metavar="N",
+        help=(
+            "captures per (tone, level), medianed. One is enough down a "
+            "cable, where the floor is stationary. Acoustically, repeated "
+            "identical readings on this bench scattered 0.6-1.9 dB sd -- "
+            "larger than the tolerance the result is judged against. "
+            "capture_sweep has always medianed its repeats; this check "
+            "never did. Costs ~3 s per extra repeat."
+        ),
+    )
+    p.add_argument(
         "--tones",
         type=float,
         nargs="+",
@@ -1652,6 +1934,49 @@ def main() -> int:
     p.add_argument("--temperature-c", type=float, default=None)
     p.add_argument("--host-api", default="Windows WASAPI")
     p.set_defaults(func=cmd_measure)
+
+    p = sub.add_parser(
+        "fit-from-rew",
+        help="fit a correction from a REW measurement export and write it",
+    )
+    p.add_argument("--address", help="Bluetooth address of the DSP-408")
+    p.add_argument("--port", help="Bluetooth SPP COM port")
+    p.add_argument("--channel", type=int, default=1)
+    p.add_argument("--link-id", type=int, default=4)
+    p.add_argument("--journal")
+    p.add_argument("--output", type=int, default=1, help="1-based DSP output")
+    p.add_argument(
+        "--measurement",
+        required=True,
+        help="REW 'Export measurement as text' file for the channel under test",
+    )
+    p.add_argument(
+        "--target",
+        help=(
+            "a second REW export to use as the target curve, level-matched to "
+            "the measurement. This is the sanctioned way to supply a "
+            "published target: optimize.target.harman_in_car deliberately "
+            "raises rather than reproducing curve values from memory, because "
+            "a wrong target is inherited by every tune afterwards and no "
+            "measurement can reveal it. Omit for a flat target."
+        ),
+    )
+    p.add_argument(
+        "--allow-smoothed",
+        action="store_true",
+        help=(
+            "fit a smoothed export. Smoothing under-corrects narrow features "
+            "-- defensible, and silent, which is why it must be declared."
+        ),
+    )
+    p.add_argument("--points", type=int, default=300)
+    p.add_argument("--apply", action="store_true", help="write the fit to the device")
+    p.add_argument(
+        "--snapshot-out",
+        default="snapshots/fit-from-rew.json",
+        help="restore point, captured before anything is written",
+    )
+    p.set_defaults(func=cmd_fit_from_rew)
 
     p = sub.add_parser(
         "predict-check",

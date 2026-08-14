@@ -76,6 +76,89 @@ class TestLinearPath:
         require_linear_path(run(FakePath(), monkeypatch))
 
 
+class TestRepeatsAndTheMedian:
+    """One capture per point was enough down a cable and is not, acoustically.
+
+    Measured on the bench 2026-08-13: repeated identical tone readings
+    scattered 0.6-1.9 dB standard deviation, which is larger than
+    ``DEFAULT_TOLERANCE_DB`` and made every verdict meaningless.
+    ``capture_sweep`` has always medianed its repeats; this check never did.
+    """
+
+    class Flaky(FakePath):
+        """Correct except on one capture in three, which reads far too high.
+
+        A dropout, a door, a passing truck. The point is that it is a *single*
+        contaminated pass, which is what a median exists to survive and what a
+        mean would spread across every reading.
+        """
+
+        def __init__(self, bad_every=3, bad_gain_db=+12.0, **kw):
+            super().__init__(**kw)
+            self.calls = 0
+            self.bad_every = bad_every
+            self.bad_gain_db = bad_gain_db
+
+        def __call__(self, stimulus, *a, **kw):
+            self.calls += 1
+            out = super().__call__(stimulus, *a, **kw)
+            if self.calls % self.bad_every == 0:
+                out = out * 10 ** (self.bad_gain_db / 20.0)
+            return out
+
+    def test_one_capture_per_point_is_still_the_default(self, monkeypatch):
+        path = self.Flaky(bad_every=10_000)
+        run(path, monkeypatch, freqs_hz=(1000.0,), levels_dbfs=(-20.0, -12.0))
+        assert path.calls == 2
+
+    def test_repeats_multiply_the_captures(self, monkeypatch):
+        path = self.Flaky(bad_every=10_000)
+        run(
+            path,
+            monkeypatch,
+            freqs_hz=(1000.0,),
+            levels_dbfs=(-20.0, -12.0),
+            repeats=3,
+        )
+        assert path.calls == 6
+
+    def test_a_single_bad_pass_ruins_the_unrepeated_reading(self, monkeypatch):
+        # Vacuity: without repeats the contamination lands in the answer, so
+        # the test below is measuring something real.
+        r = run(
+            self.Flaky(bad_every=2),
+            monkeypatch,
+            freqs_hz=(1000.0,),
+            levels_dbfs=(-20.0, -12.0),
+        )
+        assert r.spread_db > 5.0
+
+    def test_the_median_discards_it(self, monkeypatch):
+        r = run(
+            self.Flaky(bad_every=3),
+            monkeypatch,
+            freqs_hz=(1000.0,),
+            levels_dbfs=(-20.0, -12.0),
+            repeats=3,
+        )
+        assert r.spread_db < 0.2
+        assert np.allclose(r.gain_db, -20.0, atol=0.2)
+
+    def test_a_real_gate_still_shows_through_the_median(self, monkeypatch):
+        # The median must suppress noise without suppressing the signal this
+        # check exists to find.
+        r = run(
+            FakePath(gate_threshold_dbfs=-15.0),
+            monkeypatch,
+            repeats=3,
+        )
+        assert not r.is_linear
+
+    def test_zero_repeats_is_refused(self, monkeypatch):
+        with pytest.raises(ValueError, match="at least 1"):
+            run(FakePath(), monkeypatch, repeats=0)
+
+
 class TestGatedPath:
     def test_detects_a_gate(self, monkeypatch):
         r = run(FakePath(gate_threshold_dbfs=-15.0), monkeypatch)
