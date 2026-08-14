@@ -35,6 +35,7 @@ from .qa import (
     DEFAULT_MIN_RESPONSE_DB,
     DEFAULT_MIN_SNR_DB,
     IdleNoiseResult,
+    SilentPath,
     analyze_idle_noise,
     require_quiet_path,
     require_signal_response,
@@ -137,9 +138,41 @@ class CaptureConfig:
     #: floor before the chain counts as actually carrying our stimulus.
     min_response_db: float = DEFAULT_MIN_RESPONSE_DB
 
+    #: Silence prepended to every emitted buffer, and sliced back off the
+    #: recording before anything looks at it.
+    #:
+    #: **For output paths that take time to start carrying audio.** A
+    #: Bluetooth A2DP sink is the case this exists for: each capture opens a
+    #: fresh stream, and the link needs a few hundred milliseconds before any
+    #: sound exists, while the capture window opens at *playback start*.
+    #:
+    #: Measured on the bench 2026-08-14, DSP-408 A2DP sink, 400 Hz tone after
+    #: a 15 s idle, two cold trials each:
+    #:
+    #: ===========  ====================  =========================
+    #: ``lead_in``  captured              verdict
+    #: ===========  ====================  =========================
+    #: 0.0 s        -88.8, -87.6 dB       dead, reproducibly
+    #: 0.5 s        -56.5, -56.2 dB       **consistent and 7 dB low**
+    #: 1.0 s        -49.9, -49.4 dB       correct
+    #: 1.5 s        -49.4, -49.6 dB       correct
+    #: ===========  ====================  =========================
+    #:
+    #: The 0.5 s row is the dangerous one and the reason this is a measured
+    #: constant rather than a guess: a partial lead-in returns a *repeatable*
+    #: wrong level, which reads as a real measurement. Zero at least
+    #: deconvolves to obvious nonsense.
+    #:
+    #: Zero by default, because a wired path needs none and prepending silence
+    #: to every capture would lengthen every measurement in the project for a
+    #: problem it does not have.
+    lead_in_s: float = 0.0
+
     def __post_init__(self) -> None:
         if self.repeats < 1:
             raise ValueError("repeats must be at least 1")
+        if self.lead_in_s < 0:
+            raise ValueError("lead_in_s cannot be negative")
         if self.stop_hz >= self.sample_rate_hz / 2:
             raise ValueError(
                 f"stop_hz {self.stop_hz} is at or above Nyquist "
@@ -231,6 +264,35 @@ def _verify_quiet(config: CaptureConfig) -> dict[int, IdleNoiseResult]:
     return idle
 
 
+def _play_with_lead_in(config: CaptureConfig, stimulus: np.ndarray, **kwargs):
+    """``play_record`` with ``config.lead_in_s`` of silence in front, removed
+    again from the recording.
+
+    Prepending to the *played* buffer and slicing the same count off the
+    *recording* leaves every caller seeing exactly what it would have seen on
+    a path that needed no lead-in -- same length, same sample 0, same arrival
+    index. That matters because ``_single_pass`` takes its time origin from
+    ``sweep.t_zero_index`` when there is no loopback, and a lead-in that
+    shifted the recording would move the arrival without moving that index.
+
+    Slicing rather than compensating the origin is deliberate: it keeps the
+    correction in one place instead of spreading an offset through the
+    deconvolution, the alignment and the ramp's RMS windows.
+    """
+    lead = int(round(config.lead_in_s * config.sample_rate_hz))
+    if lead <= 0:
+        return play_record(stimulus, **kwargs)
+
+    padded = np.concatenate([np.zeros(lead, dtype=stimulus.dtype), stimulus])
+    recorded = play_record(padded, **kwargs)
+    if recorded.shape[0] <= lead:
+        raise SilentPath(
+            f"capture is {recorded.shape[0]} frames but the lead-in alone is "
+            f"{lead}; nothing of the stimulus was recorded"
+        )
+    return recorded[lead:]
+
+
 def _run_safety_ramp(
     config: CaptureConfig,
     sweep_gen,
@@ -256,7 +318,8 @@ def _run_safety_ramp(
         # not what the code thinks it is, and a ramp probing an unfaulted
         # signal would be verifying a chain the measurement never uses.
         stimulus = apply(_with_fault(config, probe.samples), level, config.limit)
-        captured = play_record(
+        captured = _play_with_lead_in(
+            config,
             stimulus,
             output_channel=config.output_channel,
             input_channels=list(config.input_channels),
@@ -426,7 +489,8 @@ def _single_pass(
     repeatable between runs -- see docs/hardware.md. Aligning per pass is what
     makes averaging across passes meaningful at all.
     """
-    recorded = play_record(
+    recorded = _play_with_lead_in(
+        config,
         stimulus,
         output_channel=config.output_channel,
         input_channels=list(config.input_channels),

@@ -163,6 +163,94 @@ class TestResponseRecovery:
         assert np.max(np.abs(measured - expected)) < 1.0
 
 
+class ColdStartRig(FakeRig):
+    """A rig whose output carries nothing for the first ``dead`` samples.
+
+    Models a Bluetooth A2DP sink: every capture opens a fresh stream, the link
+    needs a few hundred milliseconds before any sound exists, and the capture
+    window opens at playback start regardless. Measured on the bench
+    2026-08-14 -- a cold 400 Hz tone came back 39 dB down, and a *partial*
+    lead-in came back a repeatable 7 dB down, which is the worse failure
+    because it reads as a real measurement.
+
+    The dead region is applied to what is played, so a lead-in longer than it
+    means only silence is lost.
+
+    **What this double cannot express, stated rather than discovered.** It
+    models a hard on/off, so a lead-in one sample short of ``dead`` still
+    recovers to 0.12 dB here, while on hardware a 0.5 s lead-in returned a
+    repeatable 7 dB error. The real link evidently starts gradually. So these
+    tests pin the *mechanism* and the fix; the *sufficient duration* is a
+    bench number and cannot be derived from this fake. Same lesson as the
+    padding bug, one level out.
+    """
+
+    def __init__(self, dead: int, **kw):
+        super().__init__(**kw)
+        self.dead = dead
+
+    def __call__(self, stimulus, *args, **kwargs):
+        muted = np.asarray(stimulus, dtype=np.float64).copy()
+        muted[: self.dead] = 0.0
+        return super().__call__(muted, *args, **kwargs)
+
+
+class TestLeadIn:
+    """``lead_in_s`` exists so a slow-starting output does not eat the sweep."""
+
+    DEAD = SR // 2  # half a second of stream that carries nothing
+
+    def _response(self, monkeypatch, rig, **kw):
+        monkeypatch.setattr(capture_mod, "play_record", rig)
+        m = capture_sweep(cfg(**kw), SESSION)[1]
+        freqs = np.geomspace(200.0, 8000.0, 100)
+        db = m.magnitude_dbfs(freqs)
+        return db - np.median(db)
+
+    def test_lead_in_is_transparent_on_a_healthy_path(self, monkeypatch):
+        """It must not change the answer where it is not needed."""
+        without = self._response(monkeypatch, FakeRig())
+        with_lead = self._response(monkeypatch, FakeRig(), lead_in_s=0.5)
+        assert np.max(np.abs(with_lead - without)) < 0.05
+
+    def test_cold_start_corrupts_the_measurement_without_a_lead_in(
+        self, monkeypatch
+    ):
+        """The bug reproduces: same rig, no lead-in, materially wrong."""
+        healthy = self._response(monkeypatch, FakeRig())
+        cold = self._response(monkeypatch, ColdStartRig(self.DEAD))
+        assert np.max(np.abs(cold - healthy)) > 3.0
+
+    def test_a_sufficient_lead_in_recovers_it(self, monkeypatch):
+        healthy = self._response(monkeypatch, FakeRig())
+        fixed = self._response(
+            monkeypatch,
+            ColdStartRig(self.DEAD),
+            lead_in_s=self.DEAD / SR + 0.1,
+        )
+        assert np.max(np.abs(fixed - healthy)) < 0.5
+
+    def test_the_lead_in_reaches_the_safety_ramp_too(self, monkeypatch):
+        """A cold path would otherwise fail the ramp's signal-present check.
+
+        The ramp runs before the sweep and is therefore always the coldest
+        thing in the run. Applying the lead-in only to the sweep would trade a
+        silent wrong answer for a spurious abort.
+        """
+        rig = ColdStartRig(self.DEAD)
+        monkeypatch.setattr(capture_mod, "play_record", rig)
+        capture_sweep(
+            cfg(ramp=True, level_dbfs=-20.0, lead_in_s=self.DEAD / SR + 0.1),
+            SESSION,
+        )
+        probe = int(round(PROBE_DURATION_S * SR))
+        assert all(c["n"] > probe for c in rig.calls)
+
+    def test_negative_lead_in_is_refused(self):
+        with pytest.raises(ValueError, match="lead_in_s"):
+            cfg(lead_in_s=-0.1)
+
+
 class TestSafetyRamp:
     def test_ramp_runs_probes_before_the_measurement(self, monkeypatch):
         r = FakeRig()
