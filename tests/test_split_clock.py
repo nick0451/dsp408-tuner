@@ -18,7 +18,12 @@ from dataclasses import dataclass, field
 import numpy as np
 import pytest
 
-from tuner.audio.io import LoopbackConfig, SplitDevices, play_record
+from tuner.audio.io import (
+    SPLIT_LEAD_IN_S,
+    LoopbackConfig,
+    SplitDevices,
+    play_record,
+)
 from tuner.safety.limits import SafetyViolation
 
 
@@ -134,7 +139,8 @@ class FakePortAudio:
 def fake_pa(monkeypatch):
     pa = FakePortAudio()
     monkeypatch.setitem(sys.modules, "sounddevice", pa)
-    monkeypatch.setattr("tuner.audio.io.time.sleep", lambda _s: None)
+    pa.slept = []
+    monkeypatch.setattr("tuner.audio.io.time.sleep", pa.slept.append)
     return pa
 
 
@@ -268,6 +274,49 @@ class TestExclusiveModeGuard:
                     output="mme thing", input="in", output_exclusive=True
                 ),
             )
+
+
+class TestTheCaptureOutlivesThePlayback:
+    """``write()`` returns when frames are buffered, not when they are heard.
+
+    Observed on the bench 2026-08-13 with REW also holding the device: a
+    0.45 s ramp probe returned from ``write()`` almost immediately -- an
+    exclusive-mode buffer swallowed the whole stimulus -- and the capture was
+    then closed after ``latency + 0.05``, leaving 0.07 s of recording behind
+    a 0.45 s playback. The window ran off the end and the shortfall guard
+    fired.
+
+    ``latency`` does not report how much a stream will buffer, so the wait
+    cannot be derived from it. It has to be anchored to the stimulus.
+    """
+
+    def _run(self, fake_pa, n: int) -> None:
+        play_record(
+            a_stimulus(n),
+            output_channel=0,
+            input_channels=[0],
+            sample_rate_hz=48_000,
+            device=SPLIT,
+            tail_s=0.0,
+        )
+
+    def test_it_waits_at_least_the_stimulus_duration(self, fake_pa):
+        # 96000 frames at 48 kHz is 2 s. A write() that returns instantly
+        # must not shorten the capture below that.
+        self._run(fake_pa, 96_000)
+        assert max(fake_pa.slept) >= 2.0
+
+    def test_the_wait_scales_with_the_stimulus(self, fake_pa):
+        self._run(fake_pa, 24_000)
+        short = max(fake_pa.slept)
+        fake_pa.slept.clear()
+        self._run(fake_pa, 96_000)
+        assert max(fake_pa.slept) - short == pytest.approx(1.5, abs=0.2)
+
+    def test_the_lead_in_still_happens_before_playback(self, fake_pa):
+        # The other end of the same contract: the capture starts early too.
+        self._run(fake_pa, 24_000)
+        assert SPLIT_LEAD_IN_S in fake_pa.slept
 
 
 class TestTheBufferMatchesTheDeviceFormat:

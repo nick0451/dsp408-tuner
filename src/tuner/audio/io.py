@@ -218,11 +218,23 @@ def _play_record_split(
         time.sleep(SPLIT_LEAD_IN_S)
         with ostream:
             started_at = sum(len(f) for f in frames)
+            began_s = time.monotonic()
             ostream.write(playback)
-            # write() returns once the buffer is handed over, not once it has
-            # been heard. Hold the capture open for the stream's own latency
-            # so the tail of the stimulus is not truncated by close().
-            time.sleep(float(ostream.latency) + 0.05)
+            # `write()` returns once the frames are **buffered**, not once
+            # they have been heard, and how much it buffers is not something
+            # `latency` reports. In WASAPI exclusive mode a whole short
+            # stimulus can be swallowed in one call and returned from in
+            # milliseconds -- observed 2026-08-13, where a 0.45 s ramp probe
+            # left only 0.07 s of capture behind it and the window then ran
+            # off the end of the recording.
+            #
+            # So the wait is anchored to the stimulus's own duration rather
+            # than to `latency`, which merely tops it up. Sleeping for what
+            # has *already* elapsed inside `write()` would double-count on a
+            # device that does block, hence the subtraction.
+            duration_s = playback.shape[0] / sample_rate_hz
+            elapsed_s = time.monotonic() - began_s
+            time.sleep(max(0.0, duration_s - elapsed_s) + float(ostream.latency) + 0.05)
 
     if not frames:
         raise SafetyViolation(
