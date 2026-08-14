@@ -95,6 +95,71 @@ It is not free of questions, and none should be assumed:
 
 Worth an hour on the bench before committing to a cable.
 
+## ✅ Bluetooth carries audio *and* control at once — and the Pi must be the host
+
+Established 2026-08-13, partly on the bench and mostly from how the operator
+already uses the system.
+
+**A2DP works, and it removes the interface entirely.** Music streamed from the
+PC to `Speakers (DSP-408)` over Bluetooth, with the Scarlett unplugged from
+the chain. So a stimulus path exists that needs no DAC, no interface and no
+3.5mm→RCA.
+
+**And it coexists with the control link.** Not inferred — this is what the
+operator does daily: a phone streams A2DP to the DSP in the car *while* the
+vendor app makes real-time adjustments over RFCOMM. One host, two profiles,
+months of use. Cheaper and stronger evidence than a bench session, and the
+reason to ask before probing.
+
+> ### ⚠ The constraint that follows is user-facing, not just architectural
+>
+> The operator's suspicion, and it fits everything seen: **the DSP hosts both
+> profiles, but only for one device at a time.** Which means the Pi has to
+> *be* that device for the duration of a run.
+>
+> So the web app has to tell the user to disconnect their phone from the DSP
+> before starting, and the Pi should probably drop both connections when the
+> run ends so the phone can take it back. **A tune that dies halfway because
+> someone's phone reconnected at a traffic light** is obvious in hindsight and
+> invisible in design.
+>
+> Not yet confirmed, and cheap to confirm: with the phone connected and
+> streaming, try to bring up our RFCOMM link. A refusal proves the limit; an
+> acceptance means the constraint is softer than assumed.
+
+### Three things stand between A2DP and using it as a *stimulus*
+
+Listening through it is settled. Measuring through it is not, and these are
+the specific ways it could fail rather than a general unease:
+
+1. **Clock and resampling.** SBC runs at the stream's rate and the DSP is
+   fixed at 48 kHz, so anything that resamples shifts our frequency axis.
+   **`measure_tone_roundtrip` settles this in two seconds** -- it exists
+   because a mono buffer put every stimulus an octave high on the same day,
+   and this is the same class of fault.
+2. **AVRCP absolute volume.** If the Bluetooth volume control applies gain
+   inside the path, level-linearity breaks and the stimulus ceiling stops
+   meaning anything. This is a hard-safety-rule-6 shape: a gain we do not
+   control, sitting downstream of our limiter. Check deliberately.
+3. **Codec artifacts and dropouts.** The least worrying, because
+   `PassSpread` and the three-repeat median already exist to see exactly
+   this, and would report it as disagreement between passes rather than as a
+   plausible curve.
+
+**Latency does not matter here**, which is worth stating because it is the
+first objection anyone raises. A2DP's 100-300 ms would be fatal to a delay
+measurement and is irrelevant to us: a split clock already means delay and
+phase are refused.
+
+### And one more observation, filed as evidence
+
+Plugging in USB-B **interrupts the A2DP stream, which then resumes**. That is
+the DSP re-enumerating rather than radio contention, and it is a different
+mechanism from the arbitration in the section above -- but it is a second
+instance of the USB port disturbing something that was working. The operator
+has an independent grounding concern about that port. Both point at USB being
+the less reliable of the two paths on this unit.
+
 ## Porting checklist
 
 Nothing in `orchestrate`, `optimize`, `dsp` (above the transport) or `safety`
