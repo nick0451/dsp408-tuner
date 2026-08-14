@@ -229,6 +229,62 @@ would have been recorded as if it had gone down a cable. Now derived from
 session with no `--setup-token` **before the DSP is contacted and before any
 stimulus is emitted**.
 
+#### ✅ Settled by REW: the bench rig is comb-filtered, and the instability is in the nulls
+
+Five REW sweeps, back to back, nothing touched, same devices in WASAPI
+exclusive at 48 kHz, 1 sweep each with no timing reference and no averaging.
+REW shares no code with this project, which is the whole point of asking it.
+
+**REW sees the instability too, and is worse than us in places.**
+
+| | 450-3500 Hz |
+|---|---|
+| median spread across 5 runs | **3.90 dB** |
+| max spread | 24.93 dB |
+| worst pairwise rms | 4.62 dB |
+| band mean drift across the five | **0.51 dB** |
+
+At 1600 Hz REW's sd is **6.45 dB** against our tone probe's 0.57 dB. Our
+engine is not the problem.
+
+**It is shape, not level.** The band mean moves 0.51 dB while level-matching
+barely changes the spread (3.90 -> 3.87 dB), so nothing is warming up or
+drifting in gain -- the response itself is moving.
+
+**And the movement is confined to the nulls:**
+
+| | mean vs peak | spread |
+|---|---|---|
+| 856 Hz | −2 dB | **0.8 dB** |
+| 1196 Hz | −6 dB | **0.8 dB** |
+| 1380 Hz | −12 dB | **20.5 dB** |
+| 1518 Hz | −20 dB | **18.7 dB** |
+| 4334 Hz | −23 dB | **22.9 dB** |
+
+In a null the direct and reflected sound nearly cancel, so a millimetre of
+path change is an enormous decibel change. Null spacing is roughly 150 Hz,
+putting the reflection about **2.3 m** longer than the direct path -- a room
+boundary, not the desk edge.
+
+This retro-explains every confusing tone of the session: 720 Hz sits beside
+a null at 675, and 1600 Hz between nulls at 1592 and 1670. The two
+well-behaved tones, 900 and 1255 Hz, are the two in smooth regions. **The
+linearity check was measuring the room's comb, not the amplifier.**
+
+**Action: move the microphone near-field**, 20-30 cm on axis and off the desk
+surface, then repeat the five sweeps and confirm the spread collapses before
+spending further measurement time. Near-field is also the right measurement
+for what this bench session is for -- testing whether the loop can correct a
+**planted fault**, not tuning this room.
+
+> **The methodology is what worked here, and it is worth naming.** Three
+> reasoned diagnoses were wrong in sequence -- a partial capture, an
+> independent room tone, a clock ratio -- and each was plausible. What
+> settled the octave bug was sweeping the requested frequency and reading the
+> ratio. What settled this was asking an instrument that shares no code with
+> us. Neither took long; both were reached only after the reasoning was
+> abandoned.
+
 #### ⚠ A single-tone gain reading repeats to 0.6-1.9 dB sd here, and it is not the estimator
 
 Measured, because three runs of the same check had reported spreads of 0.08,
