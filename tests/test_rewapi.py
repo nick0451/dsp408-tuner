@@ -138,6 +138,55 @@ class TestReading:
             api.frequency_response(99)
 
 
+class TestBothAxisConventions:
+    """REW describes an imported response and a measured one differently.
+
+    An import comes back log-spaced (``ppo``) because that is how it was
+    sent; a sweep REW ran itself comes back linearly spaced (``freqStep``)
+    because that is what an FFT produces. The client was first written
+    against imports alone and fell over on the first real measurement.
+    """
+
+    def _api(self, payload):
+        def transport(method, path, _payload=None):
+            return 200, json.dumps(payload)
+
+        return RewApi(transport=transport)
+
+    def _payload(self, magnitude, **extra):
+        return {
+            "startFreq": 0.0 if "freqStep" in extra else 20.0,
+            "magnitude": base64.b64encode(
+                np.asarray(magnitude, dtype=">f4").tobytes()
+            ).decode(),
+            **extra,
+        }
+
+    def test_a_log_axis_uses_ppo(self):
+        got = self._api(self._payload(np.zeros(49), ppo=48)).frequency_response(1)
+        assert got.freqs_hz[0] == pytest.approx(20.0)
+        assert got.freqs_hz[48] == pytest.approx(40.0)
+
+    def test_a_linear_axis_uses_freqstep(self):
+        got = self._api(self._payload(np.zeros(5), freqStep=10.0)).frequency_response(1)
+        # DC is dropped, so the first surviving point is 10 Hz.
+        assert np.allclose(got.freqs_hz, [10.0, 20.0, 30.0, 40.0])
+
+    def test_dc_is_dropped_with_its_magnitude(self):
+        # Dropping the frequency and keeping the value would misalign every
+        # point after it -- worse than either keeping or refusing.
+        got = self._api(
+            self._payload([1.0, 2.0, 3.0, 4.0], freqStep=10.0)
+        ).frequency_response(1)
+        assert np.allclose(got.magnitude_dbspl, [2.0, 3.0, 4.0])
+
+    def test_neither_convention_is_an_error(self):
+        api = self._api({"startFreq": 20.0, "magnitude": base64.b64encode(
+            np.zeros(4, dtype=">f4").tobytes()).decode()})
+        with pytest.raises(RewApiError, match="neither a log axis"):
+            api.frequency_response(1)
+
+
 class TestImportIsVerifiedNotAssumed:
     """The trap: 202 does not mean the import happened."""
 

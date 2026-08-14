@@ -216,6 +216,35 @@ class RewApi:
     def set_room_curve_settings(self, ident: str | int, settings: dict) -> None:
         self._json("POST", f"/measurements/{ident}/room-curve-settings", settings)
 
+    def output_device(self) -> str:
+        """The output REW currently holds."""
+        return str(self._json("GET", "/audio/java/output-device")["device"])
+
+    def output_devices(self) -> list[str]:
+        return list(self._json("GET", "/audio/java/output-devices") or [])
+
+    def set_output_device(self, device: str) -> None:
+        """Point REW at a different output, which **releases the old one**.
+
+        **The hybrid needs this, and finding out why cost an evening.** REW
+        keeps its output device claimed after measuring -- in WASAPI
+        exclusive mode, so our own open then fails outright with
+        ``Invalid device``. Two programs cannot share the interface, and
+        nothing announces the conflict.
+
+        The dangerous part is that the failure is not always loud. At a lower
+        stimulus level the same contention produced a *quiet capture* rather
+        than an error: our stream opened, the sweep played into nothing much,
+        and only ``require_signal_response`` caught it. A hard error is the
+        good case.
+
+        So a hybrid loop hands the device back and forth explicitly: park REW
+        on some other output while we sweep, and give it back afterwards.
+        Setting the device also resets the sweep level, so re-apply
+        :meth:`set_level` after returning it.
+        """
+        self._json("POST", "/audio/java/output-device", {"device": device})
+
     def set_level(self, level_dbfs: float) -> None:
         """REW's sweep level, in dBFS.
 
@@ -343,13 +372,42 @@ class RewApi:
         return {k: v.get("title", "") for k, v in self.measurements().items()}
 
     def _to_measurement(self, payload, ident, kind: str) -> RewMeasurement:
+        """Both axis conventions, because REW uses both.
+
+        An **imported** response comes back log-spaced, described by ``ppo``,
+        because that is how it was sent. A response REW **measured itself**
+        comes back linearly spaced, described by ``freqStep``, because that is
+        what an FFT produces. The two never appear together and the client was
+        first written against imports alone -- which is the same defect as
+        validating a file parser against nothing but its author's idea of the
+        format.
+        """
         if not payload or "magnitude" not in payload:
             raise RewApiError(f"{kind} for {ident} carried no magnitude data")
         start = float(payload["startFreq"])
-        ppo = int(payload["ppo"])
-        raw = base64.b64decode(payload["magnitude"])
-        magnitude = _decode_floats(raw)
-        freqs = start * 2.0 ** (np.arange(magnitude.size) / ppo)
+        magnitude = _decode_floats(base64.b64decode(payload["magnitude"]))
+        index = np.arange(magnitude.size)
+
+        ppo = payload.get("ppo")
+        step = payload.get("freqStep")
+        if ppo:
+            freqs = start * 2.0 ** (index / int(ppo))
+        elif step:
+            freqs = start + index * float(step)
+        else:
+            raise RewApiError(
+                f"{kind} for {ident} describes neither a log axis ('ppo') nor "
+                f"a linear one ('freqStep'); got keys {sorted(payload)}. "
+                f"Without one the frequencies are unknown and the magnitudes "
+                f"are unusable."
+            )
+
+        # A linear axis from an FFT starts at DC, and a zero frequency is not
+        # a point a log-interpolating consumer can use. Drop it rather than
+        # let it propagate into a log10.
+        if freqs[0] <= 0.0:
+            keep = freqs > 0.0
+            freqs, magnitude = freqs[keep], magnitude[keep]
         return RewMeasurement(
             freqs_hz=freqs,
             magnitude_dbspl=magnitude,

@@ -17,7 +17,7 @@ is gone; do not recreate one above the project.
 it ran on 2026-08-12: arm, isolation, floor, baseline, fit, write, verify,
 settle, accepted, device restored and verified byte-identical afterwards.
 
-    pytest 1577 passing    ruff clean
+    pytest 1581 passing    ruff clean
     dsp408_probe rehearse 29/29    tune_run rehearse 41/41
 
 **Since then, two fixes, both below.**
@@ -261,26 +261,93 @@ octave bug lived in -- has been checked against anything.
 **8.4x more repeatable**, consistent with the electrical result (0.080 vs
 0.370) rather than contradicting it.
 
-**The ours-vs-REW figure is deliberately not quoted.** Four confounds:
-different stimulus level, a possible amplifier change, a time gap on a rig
-with 37 dB of observed floor drift, and a disagreement concentrated at
-1100-1700 Hz -- the 1465 Hz null, where REW disagrees with *itself* by 10 dB.
-REW's level is settable over the API and is now matched; the clean comparison
-is one run away and needs the rig quiet.
+#### ✅ And the clean version, at -12 dBFS: **0.580 dB rms**
 
-#### Where it stopped, and it stopped on a precondition doing its job
+Run properly -- both instruments at the same level, back to back under
+program control, with the device handed over explicitly between them:
 
-Broadband SNR at the microphone fell to **10.7 dB** against the 12 dB
-`require_signal_response` asks for, so our sweep refused. The room floor had
-risen about 20 dB during the evening and the amplifier had been turned down
--- at my request, because the operator could hear distortion.
+| 450-3500 Hz, level-matched, 142 points | max | rms |
+|---|---|---|
+| our run-to-run | 0.475 dB | **0.134 dB** |
+| **ours vs REW** | 2.415 dB | **0.580 dB** |
 
-**REW measured the same path happily at the same level**, because it has no
-equivalent precondition. On 10 dB of broadband SNR ours is right to refuse.
+| by band | max | rms |
+|---|---|---|
+| 450-700 Hz | 1.26 | 0.58 |
+| 700-1100 | 1.55 | 0.63 |
+| **1100-1700** | **2.42** | **0.81** |
+| 1700-2600 | 0.51 | 0.28 |
+| 2600-3500 | 0.80 | 0.37 |
 
-The window to find is between audible distortion above and 12 dB of SNR
-below, and at 20-25 cm it should be a wide one. That is the next physical
-step, and nothing further is worth measuring until it is done.
+Removing the confounds took the disagreement from **3.94 to 0.58 dB rms**.
+The worst band is the one containing the 1465 Hz null, which is where a
+measurement is least defined and where REW disagrees with itself most.
+
+**This is the first independent validation the acoustic path has ever had.**
+The REW comparison was electrical until tonight, and the acoustic path is the
+one carrying the split clock, the exclusive-mode output and the deconvolution
+that the octave bug lived in. Our agreement with REW sits well inside REW's
+own run-to-run scatter, which is the same structure as the electrical result:
+the two engines agree as closely as the reference can resolve.
+
+#### ⚠ Three operational findings, and the middle one is nasty
+
+**REW keeps the output device claimed after measuring**, in WASAPI exclusive
+mode, so our open fails with `Invalid device`. Two programs cannot share the
+interface. `RewApi.set_output_device` parks REW on another output for the
+duration of our sweep and gives it back after; setting the device also resets
+the sweep level, so `set_level` has to be re-applied.
+
+**At a lower level the same contention produced a quiet capture rather than
+an error.** Our stream opened, the sweep played into nothing much, and only
+`require_signal_response` caught it -- at 10.7 dB of broadband SNR against
+the 12 dB it asks for. *A hard failure is the good case.* REW measured the
+same path happily, having no equivalent precondition.
+
+**A native REW measurement and an imported one use different axes.** An
+import comes back log-spaced (`ppo`) because that is how it was sent; a sweep
+REW ran itself comes back linearly spaced (`freqStep`), because that is what
+an FFT produces, and starting at DC. The client was written against imports
+alone and fell over on the first real measurement -- the same defect as
+validating a parser against nothing but its author's idea of the format.
+
+#### ✅ The distortion question, answered by measurement instead of by ear
+
+The instrument this project could not build, on the first night it was
+available. At -12 dBFS, `GET /measurements/{id}/distortion`:
+
+| band | THD |
+|---|---|
+| **450-3500 Hz** (OUT1's passband) | **median 0.447 %, worst 0.751 % at 800 Hz** |
+| below 200 Hz | 2 % to 350 % |
+
+**In the band that is measured, the path is clean** -- 0.45 % is -47 dB and
+cannot touch a magnitude measurement. So -12 dBFS is fine here.
+
+The enormous low-frequency figures are an artefact and it is worth being
+exact about why, because the naive reading is alarming and wrong. The
+fundamental below 200 Hz is 25-45 dB down, because the DSP high-passes at
+450 Hz -- and the **Noise column tracks the THD almost exactly** (143 % noise
+at 20 Hz, 23 % at 50 Hz, 14 % at 100 Hz). That is the noise floor expressed
+as a percentage of a heavily attenuated fundamental. Real distortion would
+raise H2 and H3 without the noise following it.
+
+#### The ceiling was raised deliberately, with a basis
+
+-12 dBFS is above what `stimulus_limit` returns for OUT1, which is
+`characterized=False` and therefore treated as a tweeter. Hard safety rule 4
+makes raising it a deliberate act with a written basis, so the limiter was
+not bypassed -- `ChannelLimit(ceiling_dbfs=-12.0, characterized=True)` was
+constructed against this claim, recorded in the run's provenance notes:
+
+> OUT1 feeds the **line input of a Logitech THX 2.1 plate amplifier**, not a
+> driver. The DSP high-passes it at 450 Hz. Acoustic level is set at the
+> amplifier by ear with the operator present, and the operator has stated
+> that amplification risk is inherent and assumed on this bench.
+
+**That basis does not transfer to the car**, where OUT1 drives a midrange
+directly. It is recorded so that a ceiling which turns out wrong is traceable
+to the claim that set it.
 
 ### Second attempt at air, 2026-08-13. Sound, and the octave bug.
 
@@ -903,7 +970,7 @@ app connected over USB-B the device accepts the Bluetooth RFCOMM link and then
 ignores it completely — no reply, no error, no disconnect. Detach USB before
 opening the socket.
 
-`pytest` → **1577 passing**, `ruff check .` → clean, `dsp408_probe rehearse` →
+`pytest` → **1581 passing**, `ruff check .` → clean, `dsp408_probe rehearse` →
 29/29, `tune_run rehearse` → 41/41. Everything runs with no hardware attached.
 
 ### What the bench session settled
@@ -1255,7 +1322,7 @@ report what that compromise cost. `budget.normalize_delays` implemented.
 photographs). All are load-bearing: several conclusions rest on them and are
 pinned by tests.
 
-**Tests: 1577.** Of these, 209 are the protocol golden frames and 18 the bulk
+**Tests: 1581.** Of these, 209 are the protocol golden frames and 18 the bulk
 record — both checked against evidence from outside this project. The rest are
 largely self-referential by necessity: **the suite runs against `sim.py`, which
 encodes our model of the device, including the knowingly-wrong single-pool
@@ -2316,7 +2383,7 @@ is **not** the HF artifact (alignment suppresses it to ~0.1–0.36 dB, an order 
 magnitude too small), and my first replacement for it measured *worse* than what
 it replaced. Both were caught by measuring rather than reasoning.
 
-Test count went 237 → 577 → 1058 → 1159 → 1241 → 1258 → 1292 → 1294 → 1297 → 1316 → 1327 → 1334 → 1347 → 1354 → 1365 → 1371 → 1388 → 1392 → 1396 → 1408 → 1454 → 1508 → 1512 → 1519 → **1577**.
+Test count went 237 → 577 → 1058 → 1159 → 1241 → 1258 → 1292 → 1294 → 1297 → 1316 → 1327 → 1334 → 1347 → 1354 → 1365 → 1371 → 1388 → 1392 → 1396 → 1408 → 1454 → 1508 → 1512 → 1519 → 1577 → **1581**.
 
 #### Standing rules for bench sessions
 
