@@ -204,6 +204,82 @@ analog stage at all -- but a vendor app over USB-B is one of the three measured
 arbitration signatures that kills the RFCOMM link, so streaming audio in over
 USB while holding a control link may do the same. Measure before cabling.
 
+### ✅ A real tune, on a real loudspeaker, 2026-08-13 night
+
+The first end-to-end tune this project has produced: measure, fit, write,
+re-measure, and a human saying it sounds better. Bench 2.1, not the car.
+
+    flatten OUT1/2  ->  5-position spatial average at the seat  ->  REW's
+    matcher against a Full-range target with a room curve  ->  7 peaking
+    filters  ->  our backend writes them  ->  5-position re-measure
+
+| deviation from target, 40 Hz - 16 kHz, level-matched | rms | max |
+|---|---|---|
+| before | 4.529 dB | 11.93 |
+| after | **3.925 dB** | 12.40 |
+
+| by band, rms | before | after |
+|---|---|---|
+| 40-100 Hz | 3.07 | 3.49 |
+| 100-300 | 3.63 | 3.87 |
+| **300-1000** | 1.97 | **1.16** |
+| **1000-3000** | 2.21 | **1.31** |
+| 3000-16000 | 2.73 | 2.71 |
+
+**Where the filters acted the deviation fell by ~40 %.** The bands that got
+worse contain no filters -- nothing below 205 Hz was touched -- so that
+±0.4 dB is drift between two five-position averages, and it usefully sets the
+comparison's own noise floor. The improvements sit clearly above it.
+
+**The 3.9 dB residual is mostly not an EQ problem.** It is bass below 80 Hz
+and treble above 4 kHz falling away from the room curve, and boost was capped
+at 3 dB per filter and 0 dB overall -- the right call for a small plate-amp
+sub, and it means the target asks for extension the speaker does not have.
+
+Operator verdict, listening to Coltrane: *"the tune is very nice."*
+
+#### What made the listening test honest
+
+**Level.** Every filter is a cut, so tuned measured **2.23 dB quieter** where
+music has its energy (200 Hz - 5 kHz, power-weighted -- a level averaged over
+the full sweep is not the level anyone hears). Two decibels reliably reads as
+"better" regardless of tonality. `tools/bench_ab.py` compensates with channel
+gain, so the A/B is about tonality.
+
+**Spatial averaging, done by us and not by REW.** Each position has its own
+comb, so averaging *magnitudes* keeps what the seat has in common and dilutes
+the position-specific nulls. Averaging in the power domain, because averaging
+decibels flatters a null. REW's own averaging is vector and needs a timing
+reference we do not have -- it produced 62 dB of comb filtering when asked.
+
+#### ⛔ And a routing assumption that was wrong, caught by the operator
+
+**OUT2 was receiving nothing.** Its mixer took IN2 and IN4, and only the
+Scarlett's left output is cabled, to IN1. So the right speaker was silent
+throughout -- and the A/B was set up on the stated assumption that "Apple
+Music will send R to IN2 to OUT2", which was simply false.
+
+`backend.input_mix(output)` exists, block 33 is decoded, and `CLAUDE.md`'s
+hard safety rule 5 says in as many words: *verify routing by measurement, not
+by intent.* It was not queried once.
+
+Live routing, after the operator fixed it in the vendor app:
+
+| | IN1 | IN2 | IN3 | IN4 |
+|---|---|---|---|---|
+| OUT1 | 90 | 0 | 80 | 0 |
+| OUT2 | **90** | 0 | 0 | 80 |
+| OUT7/8 | 90 | 90 | 90 | 90 |
+
+Both outputs now take IN1, so **the listening test was in mono** -- fine for
+judging tonality, and not the configuration that was measured. The fit was
+made against one speaker measured alone; two coherent sources sum differently
+at the seat.
+
+**To build: a routing pre-flight that refuses to measure an output whose
+mixer receives nothing.** The tooling had everything it needed to catch this
+and no code path that looked.
+
 ### The REW hybrid, 2026-08-13 evening. Explored, built, licensed.
 
 Operator's proposal: let REW do the measuring and keep this project for the
