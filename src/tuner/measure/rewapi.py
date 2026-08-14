@@ -216,6 +216,59 @@ class RewApi:
     def set_room_curve_settings(self, ident: str | int, settings: dict) -> None:
         self._json("POST", f"/measurements/{ident}/room-curve-settings", settings)
 
+    def set_level(self, level_dbfs: float) -> None:
+        """REW's sweep level, in dBFS.
+
+        Worth setting from ``DspBackend.stimulus_limit`` rather than leaving
+        at whatever the operator last used -- but read the warning on
+        :meth:`measure` before treating that as equivalent to our own limiter.
+        """
+        self._json("POST", "/measure/level", {"value": float(level_dbfs),
+                                              "unit": "dBFS"})
+
+    def measure(self, command: str = "SPL", settle_s: float = 120.0) -> str:
+        """Have REW run a sweep, and return the new measurement's index.
+
+        Requires the **Pro** upgrade; every other method here works on a
+        plain installation. Confirmed working 2026-08-13.
+
+        .. warning::
+           **This is the one call in this module that emits sound, and it
+           does not pass through** :mod:`tuner.safety`. There is no ramp from
+           -30 dBFS, no per-channel ``DriverCeiling`` with a written basis,
+           and no subtraction of the DSP's own gain and EQ boost -- hard
+           safety rules 1, 2 and 6, none of which this project can enforce
+           over a stimulus another program plays.
+
+           Two mitigations, and they are not equivalent. :meth:`set_level`
+           caps what REW *asks* for, which is enforcement by trusting a
+           setting. Setting the DSP channel's own gain first is enforcement
+           in hardware we control and which sits downstream of REW, which is
+           strictly stronger; it inverts rule 6 from a hazard into the
+           enforcement point.
+
+           With anything fragile connected, prefer measuring with our own
+           ramped sweep and :meth:`import_response`. The whole reason that
+           path exists is that it keeps REW's analysis without giving up the
+           limiter.
+
+        Asynchronous like the import, and polled for the same reason: the
+        202 says the sweep started, not that it finished or succeeded.
+        """
+        before = set(self.measurements())
+        self._json("POST", "/measure/command", {"command": command})
+        deadline = time.monotonic() + settle_s
+        while time.monotonic() < deadline:
+            time.sleep(0.5)
+            fresh = set(self.measurements()) - before
+            if fresh:
+                return sorted(fresh, key=lambda k: int(k) if k.isdigit() else 0)[-1]
+        raise RewApiError(
+            f"REW accepted a {command!r} measurement but none appeared within "
+            f"{settle_s:.0f} s. Automated measurement needs the Pro upgrade; "
+            f"without it the command is accepted and nothing happens."
+        )
+
     def import_response(
         self,
         identifier: str,

@@ -199,6 +199,46 @@ class TestImportIsVerifiedNotAssumed:
         assert np.allclose(np.frombuffer(raw, dtype=">f4"), magnitude)
 
 
+class TestAutomatedMeasurement:
+    """``POST /measure/command`` -- the one Pro-gated call, and the one that
+    emits sound outside ``tuner.safety``. Confirmed on hardware 2026-08-13."""
+
+    def test_it_returns_the_new_measurement(self):
+        fake = FakeRew()
+        original = fake.__call__
+
+        def with_measure(method, path, payload=None):
+            if method == "POST" and path == "/measure/command":
+                fake.seed("swept", 20.0, 24, np.zeros(48))
+                return 202, json.dumps({"message": "Starting measurement"})
+            return original(method, path, payload)
+
+        assert RewApi(transport=with_measure).measure() == "1"
+
+    def test_a_command_that_produces_nothing_raises(self):
+        # Without Pro the command is accepted and nothing happens, which is
+        # indistinguishable from success at the status code.
+        def accepts_and_does_nothing(method, path, payload=None):
+            if method == "POST":
+                return 202, json.dumps({"message": "Starting measurement"})
+            return 200, json.dumps({})
+
+        api = RewApi(transport=accepts_and_does_nothing)
+        with pytest.raises(RewApiError, match="Pro upgrade"):
+            api.measure(settle_s=0.5)
+
+    def test_the_level_is_settable(self):
+        sent = []
+
+        def spy(method, path, payload=None):
+            sent.append((method, path, payload))
+            return 200, json.dumps({"message": "Level set"})
+
+        RewApi(transport=spy).set_level(-20.0)
+        assert sent == [("POST", "/measure/level",
+                         {"value": -20.0, "unit": "dBFS"})]
+
+
 class TestTheLogAxis:
     def test_it_matches_what_the_import_implies(self):
         # log_axis exists so a caller cannot resample onto a grid a fraction

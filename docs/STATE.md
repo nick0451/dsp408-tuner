@@ -17,7 +17,7 @@ is gone; do not recreate one above the project.
 it ran on 2026-08-12: arm, isolation, floor, baseline, fit, write, verify,
 settle, accepted, device restored and verified byte-identical afterwards.
 
-    pytest 1519 passing    ruff clean
+    pytest 1577 passing    ruff clean
     dsp408_probe rehearse 29/29    tune_run rehearse 41/41
 
 **Since then, two fixes, both below.**
@@ -203,6 +203,84 @@ with the car half-written.
 analog stage at all -- but a vendor app over USB-B is one of the three measured
 arbitration signatures that kills the RFCOMM link, so streaming audio in over
 USB while holding a control link may do the same. Measure before cabling.
+
+### The REW hybrid, 2026-08-13 evening. Explored, built, licensed.
+
+Operator's proposal: let REW do the measuring and keep this project for the
+fitting and the write. Explored against **REW 5.40 beta 132, API 0.9.6** --
+everything below was measured against that build, not read off documentation.
+
+**The decisive find is `POST /import/frequency-response-data`.** It accepts a
+curve *we* measured, so REW's targets, smoothing and distortion analysis
+apply to a sweep that went through `tuner.safety`:
+
+    our ramped, ceiling-limited sweep  ->  import into REW  ->  REW's targets
+    and smoothing  ->  our fitter under the device's constraints  ->  our
+    RFCOMM write
+
+That keeps hard safety rule 1 enforced. Handing sweep duty to REW does not:
+no ramp from −30 dBFS, no `DriverCeiling`, no subtraction of the DSP's own
+gain. **`RewApi.measure()` exists and its docstring says so.** The sensible
+split is REW-automated where nothing fragile is connected, and our sweep
+plus import in a car.
+
+**The Pro upgrade is real and now held.** `POST /measure/command` with
+`{"command": "SPL"}` was confirmed working. Everything else in the client --
+GET, and the import -- works on a plain installation.
+
+| Behaviour | Consequence |
+|---|---|
+| magnitude is base64 **big-endian** floats, not text | a text list is rejected outright, which is the good case |
+| a **little-endian** payload is accepted with 202 then silently dropped | `import_response` polls for the identifier rather than trusting the status code |
+| 202 means "in progress" even when correct | so does `measure()` |
+| `DELETE /measurements/{id}` did not return | it appears to raise a modal, which blocks REW's write path while GETs keep answering |
+
+That last one is the nastiest and it is the shape this project keeps meeting:
+**the API looked healthy from outside while the write path was dead.** For an
+unattended Pi loop, any endpoint that can raise a modal is a hang that does
+not announce itself.
+
+Also confirmed available and directly useful: `/measurements/{id}/distortion`
+(a gap we cannot fill at all), `/measurements/{id}/target-response` (a real
+target curve as data -- exactly the route `harman_in_car`'s docstring
+sanctions instead of reproducing published values from memory), smoothing as
+a query parameter, and `/measure/protection-options`, which has an SPL-limit
+abort we should be turning on.
+
+#### ✅ Our acoustic engine, measured against REW at the same microphone
+
+The REW comparison had always been **electrical**. This is the first time the
+acoustic path -- split clock, exclusive-mode output, the deconvolution the
+octave bug lived in -- has been checked against anything.
+
+| 450-3500 Hz, level-matched | max | rms |
+|---|---|---|
+| **our run-to-run** | 0.836 dB | **0.199 dB** |
+| REW run-to-run, worst pair | 10.379 dB | **1.674 dB** |
+
+**8.4x more repeatable**, consistent with the electrical result (0.080 vs
+0.370) rather than contradicting it.
+
+**The ours-vs-REW figure is deliberately not quoted.** Four confounds:
+different stimulus level, a possible amplifier change, a time gap on a rig
+with 37 dB of observed floor drift, and a disagreement concentrated at
+1100-1700 Hz -- the 1465 Hz null, where REW disagrees with *itself* by 10 dB.
+REW's level is settable over the API and is now matched; the clean comparison
+is one run away and needs the rig quiet.
+
+#### Where it stopped, and it stopped on a precondition doing its job
+
+Broadband SNR at the microphone fell to **10.7 dB** against the 12 dB
+`require_signal_response` asks for, so our sweep refused. The room floor had
+risen about 20 dB during the evening and the amplifier had been turned down
+-- at my request, because the operator could hear distortion.
+
+**REW measured the same path happily at the same level**, because it has no
+equivalent precondition. On 10 dB of broadband SNR ours is right to refuse.
+
+The window to find is between audible distortion above and 12 dB of SNR
+below, and at 20-25 cm it should be a wide one. That is the next physical
+step, and nothing further is worth measuring until it is done.
 
 ### Second attempt at air, 2026-08-13. Sound, and the octave bug.
 
@@ -825,7 +903,7 @@ app connected over USB-B the device accepts the Bluetooth RFCOMM link and then
 ignores it completely — no reply, no error, no disconnect. Detach USB before
 opening the socket.
 
-`pytest` → **1519 passing**, `ruff check .` → clean, `dsp408_probe rehearse` →
+`pytest` → **1577 passing**, `ruff check .` → clean, `dsp408_probe rehearse` →
 29/29, `tune_run rehearse` → 41/41. Everything runs with no hardware attached.
 
 ### What the bench session settled
@@ -1177,7 +1255,7 @@ report what that compromise cost. `budget.normalize_delays` implemented.
 photographs). All are load-bearing: several conclusions rest on them and are
 pinned by tests.
 
-**Tests: 1519.** Of these, 209 are the protocol golden frames and 18 the bulk
+**Tests: 1577.** Of these, 209 are the protocol golden frames and 18 the bulk
 record — both checked against evidence from outside this project. The rest are
 largely self-referential by necessity: **the suite runs against `sim.py`, which
 encodes our model of the device, including the knowingly-wrong single-pool
@@ -2238,7 +2316,7 @@ is **not** the HF artifact (alignment suppresses it to ~0.1–0.36 dB, an order 
 magnitude too small), and my first replacement for it measured *worse* than what
 it replaced. Both were caught by measuring rather than reasoning.
 
-Test count went 237 → 577 → 1058 → 1159 → 1241 → 1258 → 1292 → 1294 → 1297 → 1316 → 1327 → 1334 → 1347 → 1354 → 1365 → 1371 → 1388 → 1392 → 1396 → 1408 → 1454 → 1508 → 1512 → **1519**.
+Test count went 237 → 577 → 1058 → 1159 → 1241 → 1258 → 1292 → 1294 → 1297 → 1316 → 1327 → 1334 → 1347 → 1354 → 1365 → 1371 → 1388 → 1392 → 1396 → 1408 → 1454 → 1508 → 1512 → 1519 → **1577**.
 
 #### Standing rules for bench sessions
 
