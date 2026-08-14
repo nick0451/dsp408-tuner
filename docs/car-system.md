@@ -123,25 +123,40 @@ subsonic corner belongs.
 | Output channel gain | **54** | — | iOS app, 0–60 |
 | REW sweep level | — | **−12 dBFS** | dBFS |
 
-> ### ⚠ Two of those numbers need a unit before they can be enforced in code
+### ✅ The output-gain scale is confirmed: **iOS display = dB + 60**
+
+Operator-confirmed 2026-08-14, and it agrees with `protocol.gain_dbfs`:
+
+| iOS | `gain_raw` | dB |
+|---|---|---|
+| 60 | 600 | **0.00** |
+| **54** | 540 | **−6.00** ← output channels clip above here |
+| 50 | 500 | −10.00 |
+| **48** | 480 | **−12.00** ← the tuning position |
+| 0 | 0 | −60.00 |
+
+So **"output channels clip past 54" means keep output gain at or below
+−6.0 dB**, and that is now a number code may enforce.
+
+> **One correction worth making precisely, because it is a clip limit.** The
+> operator's recollection paired 50 with −12 dB. 50 is **−10.00 dB**; −12.00 dB
+> is **48**. The 2 dB matters, and this particular value carries the strongest
+> evidence in the project: `gain_raw` 500 was read out of the **ADAU1701's own
+> coefficient memory** as exactly −10.0000 dB in 5.23 format on 2026-08-11 —
+> not inferred from a display but read from the silicon, with the Android
+> display and a measured 6.00 dB step agreeing independently.
 >
-> `CLAUDE.md` records that the **iOS app shows output gain as 0–60, i.e.
-> `raw/10`**, while Android renders the same field as dB. On that mapping:
->
->     iOS 54  ->  gain_raw 540  ->  540/10 - 60  =  **-6.0 dB**
->
-> So "output channels clip past 54" reads as **keep output gain at or below
-> −6.0 dB**. That is arithmetic on a documented mapping, not something the
-> operator said, and it is flagged rather than asserted — **confirm before any
-> code enforces it.**
->
-> Master gain is a *different parameter* from output channel gain and its
-> scale is not established here at all. 54 and 48 are recorded as the
-> operator's app-scale numbers and nothing is inferred from them.
->
-> Input gain lives in `DataType 3`, which **no protocol work has ever
-> reached** — the Android captures never touched it. 90 is therefore a number
-> we can respect operationally and cannot read or write.
+> It is also self-consistent with the operator's own instruction to tune with
+> master gain at **48**, which is the −12 dB position.
+
+**Master gain is a different parameter** from output channel gain, and its
+scale is not established here. 54 and 48 are recorded as the operator's
+app-scale numbers; nothing is inferred from them.
+
+**Input gain lives in `DataType 3`, which no protocol work has ever reached**
+— the Android captures never touched it, and the iOS app is the only known
+vendor path to it. 90 is a limit we can respect operationally and cannot read
+or write.
 
 ## Delay: the anchor, and why there are two of them
 
