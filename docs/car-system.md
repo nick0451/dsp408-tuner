@@ -104,37 +104,68 @@ The 3500 Hz low-pass sits inside the flat-to-6500 Hz region, so there is room
 to raise it if the tweeter's corner ever moves up. 30 W RMS is modest and
 worth remembering before allowing EQ boost on this channel.
 
-### CT Sounds Meso 6.5 — ⚠ the unresolved one
+### ✅ CT Sounds Meso 6.5 — resolved 2026-08-14, and the corner sits on Fs
 
-**Which model is not established.** CT Sounds sells several "Meso 6.5":
-a 250 W RMS pro-audio midrange (`MESO65-4`), a 160 W RMS component woofer,
-a coaxial, and a **subwoofer** whose published Fs is 56.30 Hz and Xmax 8 mm.
+**It is the 6.5" woofer from the Meso 3-way component set**
+(`MESO-6-5-3WAY-COM`), bought around 2022 — operator, 2026-08-14. **Not** the
+`MESO-6-5` subwoofer, which was the variant this file worried about.
 
-Sources: [MESO65-4](https://www.ctsounds.com/products/meso65-4),
-[MESO-6-5-COM](https://www.ctsounds.com/products/meso-6-5-com),
-[MESO-6-5 subwoofer](https://www.ctsounds.com/products/meso-6-5)
+| | | grade |
+|---|---|---|
+| **Fs** | **65 Hz** | manufacturer |
+| Sensitivity | 89 dB (1 W / 1 m) | manufacturer |
+| Frequency response | 50 Hz – 20 kHz (−10 dB) | manufacturer |
+| Set rating | 500 W peak / 250 W RMS (3-way set) | manufacturer |
+| Xmax | **not published** | — |
 
-**This matters because the channel is high-passed at 65 Hz.** If this driver's
-Fs is anywhere near the subwoofer variant's 56 Hz, then a 65 Hz corner sits
-essentially *on resonance* — which is exactly where excursion peaks and where
-a 12 dB/oct filter provides the least protection. A 6.5" driven hard at 65 Hz
-with a 12 dB/oct corner is a plausible way to exceed Xmax.
+Source: [MESO-6-5-3WAY-COM](https://www.ctsounds.com/products/meso-6-5-3way-com)
 
-**Operator question, before raising any level on channels 5/6: which Meso
-6.5 is installed, and what is its Fs and Xmax?** Until answered, treat 65 Hz
-as the lowest corner permitted on that channel and do not lower it.
+**The channel is high-passed at 65 Hz and the driver's Fs is 65 Hz.** The
+corner is exactly on resonance.
 
-### Subwoofers — unknown, and ported
+That is **acceptable and has no margin.** Above Fs, excursion for constant
+voltage rises 12 dB/octave as frequency falls; below Fs it flattens. So a
+corner at Fs means the driver never sees the rising-excursion region unfiltered,
+and a 12 dB/oct high-pass at that point makes excursion *fall* below the
+corner. The usual recommendation is to cross a midbass somewhat **above** Fs
+for headroom at high output — crossing at 80 Hz would buy that, at the cost of
+moving the sub's low-pass with it.
 
-Two drivers in one **ported** enclosure (operator, 2026-08-10), which is why
-`orchestrate.plan.Gang` exists: box pressure is common to both cones, so
-driving them unequally back-drives one of them.
+**Do not lower it.** The worry recorded here on 2026-08-13 was right in
+substance and wrong in its candidate model.
 
-**Below port tuning a ported box unloads and excursion runs away.** The
-20 Hz high-pass is the subsonic filter that prevents that, and **12 dB/oct is
-light for the job — 24 dB/oct is the usual choice.** Model, Fs, Xmax and port
-tuning are all unknown; the tuning frequency is what decides where the
-subsonic corner belongs.
+### ✅ Subwoofers — resolved 2026-08-14, and the subsonic filter is wrong
+
+**CT Sounds Tropo dual-10 loaded ported box kit** (operator, 2026-08-14).
+Two drivers in one ported enclosure, which is why `orchestrate.plan.Gang`
+exists: box pressure is common to both cones, so driving them unequally
+back-drives one.
+
+| | | grade |
+|---|---|---|
+| Enclosure | dual 10", ported, 1.80 ft³ | manufacturer |
+| **Box tuning, Fb** | **32 Hz** | manufacturer |
+
+Source: [Dual 10" ported design](https://www.ctsounds.com/products/dual-10-ported-design)
+
+> #### ⚠ The subsonic filter is 12 Hz below port tuning, at 12 dB/oct
+>
+> The channel is high-passed at **20 Hz**. The box is tuned to **32 Hz**.
+>
+> **Below Fb a ported box unloads**: the port stops controlling the cone and
+> excursion rises steeply for the same voltage. The subsonic filter exists to
+> prevent exactly that, and at 20 Hz it is not covering the region it was
+> installed for. Between 20 and 32 Hz the drivers are unloading while the
+> filter is still barely attenuating.
+>
+> **Recommended: high-pass at or near 32 Hz, at 24 dB/oct.** That is the one
+> change on this car with a cited number behind it rather than a general
+> argument.
+>
+> It is a **warning and not a refusal** in `carlimits` — the car has run this
+> way for years and blocking a session over it at the kerbside would be the
+> wrong trade. But it must not pass silently, which is what prose achieved
+> for the last day.
 
 ## Clip limits — operator-declared, 2026-08-14
 
@@ -228,10 +259,18 @@ None of these has been made. Each needs the operator's agreement.
 
 | change | from | to | why |
 |---|---|---|---|
+| **CH7/8 subsonic corner** | **20 Hz** | **32 Hz** | **the box is tuned to 32 Hz.** Below Fb it unloads and excursion runs away, and the filter is currently 12 Hz below the region it exists to protect. The only recommendation here with a cited number rather than a general argument |
+| CH7/8 subsonic slope | 12 | **24 dB/oct** | same reason; 12 dB/oct is light for a subsonic filter |
 | CH3/4 high-pass slope | 12 | **24 dB/oct** | 12 is the GB10's stated *minimum*; at 12 dB/oct excursion below the corner is constant rather than falling, and there is no passive network behind it |
-| CH7/8 subsonic slope | 12 | **24 dB/oct** | below port tuning a ported box unloads and excursion runs away |
 | CH1/2 high-pass | 450 | **leave** | 4.5× Fs with 1.73 mm of Xmax; there is nothing to gain and excursion to lose |
-| CH5/6 high-pass | 65 | **leave until Fs is known** | 65 Hz may sit on resonance |
+| CH5/6 high-pass | 65 | **leave**, consider 80 | Fs is 65 Hz, so the corner is exactly on resonance — acceptable, no margin. 80 Hz buys headroom but moves the sub's low-pass with it |
+
+**Amplifier gains are already matched to the DSP to avoid clipping** (operator,
+2026-08-14), and the amps are **straight gain with no processing, limiter or
+bass boost**. So the operative level constraints are the master/input/output
+maxima above, not a per-channel power derating — and a single-level
+measurement is valid, which is not something this project can assume in
+general.
 
 > ### ⚠ Changing a crossover type changes the voltage at the corner
 >

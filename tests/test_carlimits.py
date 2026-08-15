@@ -155,6 +155,32 @@ class TestInputGain:
         assert not require_declared_input_gain(INPUT_GAIN_MAX)
 
 
+class TestTheSubsonicFilterSitsBelowPortTuning:
+    """The box is tuned to 32 Hz and the subsonic filter is at 20 Hz.
+
+    Below tuning a ported box unloads and excursion runs away, so the 12 Hz
+    between them is the region with the least mechanical control and almost
+    no electrical attenuation. It warns rather than refuses: the car has run
+    this way for years and blocking a session over it would be wrong, but it
+    must not pass silently either.
+    """
+
+    def test_the_car_as_configured_warns(self):
+        c = cfg(hp=20.0, lp=65.0, slope=12, gain=-19.0)
+        vs = check_channel(SUB, c, require_flat=False)
+        assert not fatal(vs)
+        assert any("port tuning" in v.message for v in vs)
+
+    def test_at_port_tuning_it_stops_warning_about_the_corner(self):
+        c = cfg(hp=32.0, lp=65.0, slope=24, gain=-19.0)
+        vs = check_channel(SUB, c, require_flat=False)
+        assert not any("recommended" in v.message for v in vs)
+
+    def test_the_recommendation_carries_its_own_citation(self):
+        assert "32 Hz" in SUB.recommendation_basis
+        assert SUB.recommended_high_pass_hz == 32
+
+
 @pytest.mark.parametrize("spec", CAR_DSP408, ids=lambda s: s.label)
 def test_each_channels_declared_configuration_passes_its_own_spec(spec):
     """The table must not refuse the car it describes."""

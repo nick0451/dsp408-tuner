@@ -77,6 +77,11 @@ class ChannelSpec:
     recommended_slope_db_oct: int
     max_gain_dbfs: float
     basis: str
+    #: Warned about, never refused. A recommendation that refuses would block
+    #: the operator at the kerbside over a configuration the car has run for
+    #: years; the point is that they see the argument and decide.
+    recommended_high_pass_hz: int | None = None
+    recommendation_basis: str = ""
 
     @property
     def label(self) -> str:
@@ -125,9 +130,11 @@ CAR_DSP408: tuple[ChannelSpec, ...] = (
             min_slope_db_oct=12,
             recommended_slope_db_oct=12,
             max_gain_dbfs=MAX_OUTPUT_GAIN_DBFS,
-            basis="operator, 2026-08-14. Which Meso variant is UNRESOLVED; the "
-            "subwoofer version publishes Fs 56.3 Hz, which would put this 65 Hz "
-            "corner essentially on resonance. Do not lower it",
+            basis="operator, 2026-08-14: the 6.5in woofer from the Meso 3-way "
+            "component set (MESO-6-5-3WAY-COM), bought ~2022. NOT the "
+            "MESO-6-5 subwoofer. Manufacturer publishes Fs 65 Hz, so this "
+            "65 Hz corner sits exactly ON resonance -- acceptable, and with "
+            "no margin. Do not lower it",
         )
         for o in (4, 5)
     ),
@@ -140,9 +147,17 @@ CAR_DSP408: tuple[ChannelSpec, ...] = (
             min_slope_db_oct=12,
             recommended_slope_db_oct=24,
             max_gain_dbfs=MAX_OUTPUT_GAIN_DBFS,
-            basis="operator, 2026-08-10. Ported, so below tuning the box "
-            "unloads and excursion runs away; the 20 Hz high-pass is the "
-            "subsonic filter that prevents it",
+            basis="operator, 2026-08-14: CT Sounds Tropo dual-10 loaded ported "
+            "box kit. Two drivers, one box, so box pressure is common to both "
+            "cones -- see orchestrate.plan.Gang",
+            recommended_high_pass_hz=32,
+            recommendation_basis=(
+                "CT Sounds publishes the dual-10 ported design as 1.80 cu ft "
+                "tuned to 32 Hz. The subsonic filter is at 20 Hz, which is "
+                "12 Hz BELOW port tuning: between 20 and 32 Hz the box is "
+                "unloading and the filter is barely attenuating. A subsonic "
+                "filter belongs at or near Fb, at 24 dB/oct"
+            ),
         )
         for o in (6, 7)
     ),
@@ -216,6 +231,19 @@ def check_channel(spec: ChannelSpec, config, *, require_flat: bool) -> list[Viol
             f"{spec.recommended_slope_db_oct} is recommended -- at "
             f"{xo.slope_db_oct} dB/oct excursion below the corner is held "
             f"constant rather than reduced",
+            fatal=False,
+        ))
+
+    if (
+        spec.recommended_high_pass_hz is not None
+        and xo.high_pass_hz is not None
+        and int(xo.high_pass_hz) != spec.recommended_high_pass_hz
+    ):
+        out.append(Violation(
+            w,
+            f"high-pass is {xo.high_pass_hz:.0f} Hz; "
+            f"{spec.recommended_high_pass_hz} Hz recommended -- "
+            f"{spec.recommendation_basis}",
             fatal=False,
         ))
 
