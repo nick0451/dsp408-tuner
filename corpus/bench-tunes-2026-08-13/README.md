@@ -17,11 +17,28 @@ writes, a re-measurement scores it, and a listener agrees. Every other
 validation in this project stops short of the last step.
 
 **And they record a system whose dominant feature nobody expected.** Both
-channels show a **15–18 dB peak at 50 Hz**, narrow, consistent across five
-microphone positions. Consistency across position is what rules out a room
-mode; that is the subwoofer's **port tuning**. It is why the smile tune's
-largest filter is a −12.5 dB cut, and why a "smile" on this system sounds
-like less boom rather than more bass.
+channels show a **15–18 dB peak at 50 Hz**, narrow, and repeatable.
+
+> ### ⛔ Corrected 2026-08-14: it was never five microphone positions
+>
+> This paragraph used to read "consistent across five microphone positions"
+> and concluded that consistency across *position* ruled out a room mode,
+> making the peak the subwoofer's port tuning.
+>
+> **The operator never saw the prompts and never moved the microphone.** So
+> those were five sweeps at *one* position, and consistency across them is
+> repeatability, not spatial invariance. The premise was false and the
+> conclusion does not follow from anything that was measured.
+>
+> What the peak actually is remains **open**. A room mode, a port resonance
+> and a mic-position artefact are all still live, and they are distinguished
+> by exactly the experiment that was believed to have been run.
+>
+> Worth keeping because of how it was found: not by re-reading the data, but
+> by asking the operator a question about procedure whose answer nobody
+> expected to be interesting. The same session then measured the same system
+> at **−24 dB** at 50 Hz rather than +15, which no amount of re-reading the
+> old file would have explained either.
 
 The two channels are also **not symmetric** — R measured +7.9 dB at 500 Hz
 where L measured +3.0 — which is why the smile tune has a separate fit per

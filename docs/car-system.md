@@ -17,6 +17,28 @@ drives a system whose drivers can be destroyed by a wrong write, and because
 > Every other safety rule in this project assumes a mistake is recoverable.
 > Here one is not.
 
+> ## ✅ 2026-08-14: this file is now also code
+>
+> Everything below was prose, and **prose does not refuse a write.** The same
+> facts are encoded in `tuner.orchestrate.carlimits` and enforced by
+> `tools/car_preflight.py`, which is the gate that must pass before a stimulus
+> reaches this car. Tests in `tests/test_carlimits.py`.
+>
+> When a number here changes, change it there in the same edit. A limit that
+> lives in two places and disagrees is worse than one that lives in prose,
+> because the code will be trusted.
+>
+> The session procedure is **[car-session-runbook.md](car-session-runbook.md)**,
+> which opens with a hazard this bench session created: OUT1/2 are currently
+> at 20 Hz – 20 kHz and must be restored to 450 – 3500 before the DSP goes
+> back in the car.
+>
+> **What is deliberately not checked: routing.** Which output drives which
+> driver is the operator's declaration, recorded as `ChannelSpec.basis`.
+> Verifying it by measurement was tried on 2026-08-14 and cost more session
+> time than it returned. The scrutiny moved to the *drivers* instead, which is
+> where an error destroys hardware rather than merely confusing a fit.
+
 ## Channels
 
 | out | driver | band now | source |
